@@ -17,7 +17,7 @@ const links = [
 export function TopNav() {
   const [open, setOpen] = useState(false);
   const { activeCandidate } = useSession();
-  const cand = activeCandidate || fallbackCandidate;
+  const cand: any = activeCandidate || fallbackCandidate;
   const candName = cand.member ? cand.member.name : (cand.name || 'Candidate');
   const initials = getInitials(candName);
 

@@ -263,24 +263,12 @@ const tests = [
   }
 ];
 
-async function runAll() {
-  for (const test of tests) {
-    console.log(`\n--- Running: ${test.name} ---`);
-    try {
-      await test.fn();
-      console.log(`[PASS] ${test.name}`);
-    } catch (error: any) {
-      console.error(`[FAIL] ${test.name}`);
-      console.error(error.stack || error);
-      process.exit(1);
-    }
-    // Sleep 13 seconds between tests to respect 5 RPM limit
+import { test } from 'vitest';
+
+tests.forEach((t) => {
+  test(t.name, async () => {
+    await t.fn();
     console.log('Sleeping 13s to respect free tier RPM rate limit...');
     await sleep(13000);
-  }
-  console.log('\n================================================');
-  console.log('ALL ADAPTIVE ENGINE TESTS COMPLETED SUCCESSFULLY!');
-  console.log('================================================');
-}
-
-runAll();
+  });
+});

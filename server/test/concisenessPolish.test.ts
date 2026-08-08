@@ -20,7 +20,9 @@ const questionA = "How do IVF indexes compare to HNSW under RAM constraints?";
 const questionB = "Under RAM constraints, how do IVF indexes compare with HNSW?";
 const questionDifferent = "What similarity metric is best for cosine distance calculations?";
 
-function runTests() {
+import { test } from 'vitest';
+
+test('Question Conciseness & Validation', () => {
   // Test 1: Valid primary question
   const val1 = validateQuestion(validPrimary, 'primary', []);
   console.log(`- Valid primary question accepted: ${val1.valid}`);
@@ -71,6 +73,4 @@ function runTests() {
   console.log('\n================================================');
   console.log('ALL QUESTION CONCISENESS & VALIDATION TESTS PASSED!');
   console.log('================================================');
-}
-
-runTests();
+});

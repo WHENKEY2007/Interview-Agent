@@ -6,7 +6,7 @@ import { candidate as fallbackCandidate } from '../../data/cohort';
 
 export function CohortProgressCard() {
   const { activeCandidate } = useSession();
-  const cand = activeCandidate || fallbackCandidate;
+  const cand: any = activeCandidate || fallbackCandidate;
   
   const daysCompleted = cand.signals ? cand.signals.missionsCompleted : (cand.daysCompleted || 23);
   const totalDays = 31;

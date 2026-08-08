@@ -47,8 +47,6 @@ export interface SessionState {
   currentQuestion: string;
   currentQuestionDay: number;
   currentQuestionDifficulty: string;
-  followUpCount: number;
-  isFollowUpStage: boolean;
   clarifyUsed: boolean;
   evaluations: AnswerEvaluation[];
   status: 'IN_PROGRESS' | 'COMPLETED';
@@ -103,8 +101,6 @@ export function createSession(sessionId: string, candidate: CandidateProfile): S
     currentQuestion: '',
     currentQuestionDay: 0,
     currentQuestionDifficulty: 'Intermediate',
-    followUpCount: 0,
-    isFollowUpStage: false,
     clarifyUsed: false,
     evaluations: [],
     status: 'IN_PROGRESS',

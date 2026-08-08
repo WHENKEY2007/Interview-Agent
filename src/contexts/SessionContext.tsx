@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useMemo, useState, useEffect } from 'react';
 import candidatesData from '../../data/candidates.json';
+import { CandidateProfile, FinalFeedbackReport, QuestionReviewItem } from '../types';
 
 export interface CompletedSessionItem {
   id: string;
@@ -9,46 +10,46 @@ export interface CompletedSessionItem {
   topics: string[];
   questions: number;
   minutes: number;
-  score: number;
+  score: number | null;
   summary: string;
-  report: any;
-  evaluations: any[];
+  report: FinalFeedbackReport | null;
+  evaluations: QuestionReviewItem[];
 }
 
 export interface SessionState {
   durationSeconds: number;
   answered: number;
   followUps: number;
-  activeCandidate: any | null;
+  activeCandidate: CandidateProfile | null;
   sessionId: string | null;
-  finalReport: any | null;
-  evaluations: any[];
+  finalReport: FinalFeedbackReport | null;
+  evaluations: QuestionReviewItem[];
   completedSessions: CompletedSessionItem[];
   setResult: (result: { durationSeconds: number; answered: number; followUps: number }) => void;
-  setActiveCandidate: (candidate: any) => void;
+  setActiveCandidate: (candidate: CandidateProfile) => void;
   setSessionId: (id: string | null) => void;
-  setFinalReport: (report: any) => void;
-  setEvaluations: (evals: any[]) => void;
+  setFinalReport: (report: FinalFeedbackReport | null) => void;
+  setEvaluations: (evals: QuestionReviewItem[]) => void;
   addCompletedSession: (sessionItem: CompletedSessionItem) => void;
 }
 
 const SessionContext = createContext<SessionState | null>(null);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState({ durationSeconds: 24 * 60, answered: 10, followUps: 6 });
+  const [state, setState] = useState({ durationSeconds: 0, answered: 0, followUps: 0 });
   
   // Initialize active candidate from sessionStorage or default candidate
-  const [activeCandidate, setActiveCandidateState] = useState<any | null>(() => {
+  const [activeCandidate, setActiveCandidateState] = useState<CandidateProfile | null>(() => {
     try {
       const savedCandidateId = sessionStorage.getItem('activeCandidateId');
       if (savedCandidateId) {
         const found = candidatesData.candidates.find((c: any) => c.member.id === savedCandidateId);
-        if (found) return found;
+        if (found) return found as any as CandidateProfile;
       }
     } catch (e) {
       console.warn('Could not load activeCandidate from sessionStorage');
     }
-    return candidatesData.candidates[0];
+    return candidatesData.candidates[0] as any as CandidateProfile;
   });
 
   // Initialize sessionId from sessionStorage
@@ -61,7 +62,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   });
 
   // Initialize finalReport from sessionStorage
-  const [finalReport, setFinalReportState] = useState<any | null>(() => {
+  const [finalReport, setFinalReportState] = useState<FinalFeedbackReport | null>(() => {
     try {
       const saved = sessionStorage.getItem('finalReport');
       return saved ? JSON.parse(saved) : null;
@@ -71,7 +72,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   });
 
   // Initialize evaluations from sessionStorage
-  const [evaluations, setEvaluationsState] = useState<any[]>(() => {
+  const [evaluations, setEvaluationsState] = useState<QuestionReviewItem[]>(() => {
     try {
       const saved = sessionStorage.getItem('evaluations');
       return saved ? JSON.parse(saved) : [];
@@ -91,13 +92,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return [];
   });
 
-  const setActiveCandidate = (candidate: any) => {
+  const setActiveCandidate = (candidate: CandidateProfile) => {
     setActiveCandidateState(candidate);
     try {
       if (candidate?.member?.id) {
         sessionStorage.setItem('activeCandidateId', candidate.member.id);
       }
-    } catch (e) {}
+    } catch (e) {
+      // Ignore sessionStorage error
+    }
   };
 
   const setSessionId = (id: string | null) => {
@@ -107,11 +110,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         sessionStorage.setItem('currentSessionId', id);
       } else {
         sessionStorage.removeItem('currentSessionId');
+        // Clear previous report and evaluations when resetting sessionId!
+        setFinalReportState(null);
+        setEvaluationsState([]);
+        sessionStorage.removeItem('finalReport');
+        sessionStorage.removeItem('evaluations');
       }
-    } catch (e) {}
+    } catch (e) {
+      // Ignore sessionStorage error
+    }
   };
 
-  const setFinalReport = (report: any) => {
+  const setFinalReport = (report: FinalFeedbackReport | null) => {
     setFinalReportState(report);
     try {
       if (report) {
@@ -119,10 +129,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       } else {
         sessionStorage.removeItem('finalReport');
       }
-    } catch (e) {}
+    } catch (e) {
+      // Ignore sessionStorage error
+    }
   };
 
-  const setEvaluations = (evals: any[]) => {
+  const setEvaluations = (evals: QuestionReviewItem[]) => {
     setEvaluationsState(evals);
     try {
       if (evals && evals.length > 0) {
@@ -130,7 +142,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       } else {
         sessionStorage.removeItem('evaluations');
       }
-    } catch (e) {}
+    } catch (e) {
+      // Ignore sessionStorage error
+    }
   };
 
   const addCompletedSession = (sessionItem: CompletedSessionItem) => {
@@ -139,7 +153,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const updated = [sessionItem, ...filtered];
       try {
         sessionStorage.setItem('completedSessions', JSON.stringify(updated));
-      } catch (e) {}
+      } catch (e) {
+        // Ignore sessionStorage error
+      }
       return updated;
     });
   };

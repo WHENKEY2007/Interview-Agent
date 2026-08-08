@@ -19,7 +19,7 @@ export function FeedbackReport() {
   const { durationSeconds, finalReport, activeCandidate, evaluations } = useSession();
   const minutes = Math.max(1, Math.round(durationSeconds / 60));
 
-  const candidate = activeCandidate || fallbackCandidate;
+  const candidate: any = activeCandidate || fallbackCandidate;
   const name = candidate.member?.name || candidate.name;
   
   const isNotAssessable = !finalReport || finalReport.overallScore === null || finalReport.overallScore === undefined || evaluations.length === 0;

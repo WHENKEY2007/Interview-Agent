@@ -14,15 +14,12 @@ console.log('================================================');
 console.log('RUNNING AI INTERVIEW PLANNER TEST SUITE (PHASE 2)');
 console.log('================================================\n');
 
-function runTest(name: string, testFn: () => void) {
-  try {
-    testFn();
-    console.log(`[PASS] ${name}`);
-  } catch (error: any) {
-    console.error(`[FAIL] ${name}`);
-    console.error(error.stack || error);
-    process.exit(1);
-  }
+import { test } from 'vitest';
+
+function runTest(name: string, testFn: () => void | Promise<void>) {
+  test(name, async () => {
+    await testFn();
+  });
 }
 
 // ---------------------------------------------------------------------

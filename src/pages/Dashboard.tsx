@@ -24,7 +24,7 @@ export function Dashboard() {
     }
   }, [activeCandidate, setActiveCandidate]);
 
-  const candidate = activeCandidate || fallbackCandidate;
+  const candidate: any = activeCandidate || fallbackCandidate;
   const firstName = candidate.member ? candidate.member.name.split(' ')[0] : candidate.name.split(' ')[0];
 
   const handleStartInterview = () => {
