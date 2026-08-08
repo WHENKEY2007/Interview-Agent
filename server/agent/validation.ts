@@ -40,7 +40,7 @@ export function calculateSimilarity(q1: string, q2: string): number {
 export function isDuplicateQuestion(newQuestion: string, previousQuestions: string[]): boolean {
   for (const prev of previousQuestions) {
     const sim = calculateSimilarity(newQuestion, prev);
-    if (sim > 0.6) {
+    if (sim > 0.8) {
       console.warn(`[Validation] Semantic duplicate detected. Similarity: ${sim.toFixed(2)} between: \n  1. "${newQuestion}"\n  2. "${prev}"`);
       return true;
     }
@@ -62,16 +62,16 @@ export function validateQuestion(
 
   const cleaned = text.trim();
 
-  // 1. Sentence count check (max 3 for primary, max 2 for follow-up)
+  // 1. Sentence count check (relaxed: max 4 for primary, max 3 for follow-up)
   const sentenceMatches = cleaned.match(/[^.!?]+[.!?]+/g) || [cleaned];
-  const maxSentences = type === 'primary' ? 3 : 2;
+  const maxSentences = type === 'primary' ? 4 : 3;
   if (sentenceMatches.length > maxSentences) {
     return { valid: false, reason: `Sentence count is ${sentenceMatches.length} (max is ${maxSentences})` };
   }
 
-  // 2. Word count check (max 35 for primary, max 25 for follow-up)
+  // 2. Word count check (relaxed: max 37 for primary, max 27 for follow-up)
   const wordCount = cleaned.split(/\s+/).length;
-  const maxWords = type === 'primary' ? 35 : 25;
+  const maxWords = type === 'primary' ? 37 : 27;
   if (wordCount > maxWords) {
     return { valid: false, reason: `Word count is ${wordCount} (max is ${maxWords})` };
   }

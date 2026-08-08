@@ -155,9 +155,18 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
       setEvaluating(true);
       setErrorState(null);
 
-      // Instantly append user message to UI for smooth responsiveness
+      // Instantly append user message to UI for smooth responsiveness without duplicate turns on retry
       const candidateTurnId = `local-${Date.now()}`;
-      setTurns((prev) => [...prev, { id: candidateTurnId, role: 'candidate', text }]);
+      setTurns((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === 'candidate' && last.text === text) {
+          return prev;
+        }
+        return [...prev, { id: candidateTurnId, role: 'candidate', text }];
+      });
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 40000); // 40 seconds timeout
 
       try {
         const res = await fetch('/api/interview', {
@@ -166,8 +175,10 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
           body: JSON.stringify({
             sessionId,
             message: text
-          })
+          }),
+          signal: controller.signal
         });
+        clearTimeout(timeoutId);
 
         if (!res.ok) {
           throw new Error(`Server error (${res.status}). Failed to process response.`);
@@ -238,9 +249,10 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
         }
       } catch (err: any) {
         console.error('Error submitting answer to backend:', err);
-        setErrorState('Network error communicating with interviewer. Please try submitting again.');
-        // Revert temporary turn on hard failure
-        setTurns((prev) => prev.filter((t) => t.id !== candidateTurnId));
+        const isTimeout = err.name === 'AbortError';
+        setErrorState(isTimeout 
+          ? 'Interviewer request timed out. Please check your connection and try again.' 
+          : 'Network error communicating with interviewer. Please try submitting again.');
       } finally {
         setEvaluating(false);
       }

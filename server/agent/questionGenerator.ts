@@ -39,18 +39,52 @@ export function selectNextDay(session: SessionState): number {
 
 /**
  * Generates a deterministic fallback question when LLM calls or validations fail.
+ * Inspects previously asked questions to avoid returning a duplicate.
  */
-export function getDefaultFallbackQuestion(day: CurriculumDay, difficulty: string): string {
+export function getDefaultFallbackQuestion(day: CurriculumDay, difficulty: string, previousQuestions: string[] = []): string {
+  const candidatesList = [];
   if (day.day === 12) {
-    if (difficulty === 'Advanced') return "How would you design a latency-optimized validation layer to prevent malformed LLM JSON outputs under high load?";
-    if (difficulty === 'Foundational') return "What is the difference between system instructions and user prompts in guiding LLM outputs?";
-    return "How do you ensure JSON format compliance in LLM outputs?";
+    if (difficulty === 'Advanced') {
+      candidatesList.push("How would you design a latency-optimized validation layer to prevent malformed LLM JSON outputs under high load?");
+    } else if (difficulty === 'Foundational') {
+      candidatesList.push("What is the difference between system instructions and user prompts in guiding LLM outputs?");
+    }
+    candidatesList.push("How do you ensure JSON format compliance in LLM outputs?");
+    candidatesList.push("What are the main security risks when parsing unchecked JSON outputs from an LLM?");
+  } else if (day.day === 14) {
+    if (difficulty === 'Advanced') {
+      candidatesList.push("How do you optimize retrieval recall and latency when querying 10 million vectors under 50 milliseconds?");
+    }
+    candidatesList.push("How would you set up a dual-encoder retrieval pipeline for RAG?");
+    candidatesList.push("What strategies prevent chunk duplication and semantic drift in a vector registry?");
   }
-  if (day.day === 14) {
-    if (difficulty === 'Advanced') return "How do you optimize retrieval recall and latency when querying 10 million vectors under 50 milliseconds?";
-    return "How would you set up a dual-encoder retrieval pipeline for RAG?";
+
+  // Add objective-based fallbacks
+  for (const obj of day.objectives) {
+    candidatesList.push(`How would you approach ${obj} in a production environment?`);
+    candidatesList.push(`What is a key technical challenge when implementing ${obj}?`);
   }
-  return `How would you approach ${day.objectives[0] || day.title} in a production environment?`;
+  candidatesList.push(`Could you explain how to design a production pipeline for ${day.title}?`);
+
+  // Find the first one that is not duplicate (similarity < 0.8)
+  for (const q of candidatesList) {
+    const isDup = previousQuestions.some(prev => {
+      // Lightweight similarity check
+      const stopwords = new Set(['what', 'how', 'why', 'is', 'are', 'the', 'a', 'to', 'for', 'in', 'on', 'with', 'and', 'or', 'you', 'your']);
+      const w1 = new Set(q.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2 && !stopwords.has(w)));
+      const w2 = new Set(prev.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2 && !stopwords.has(w)));
+      if (w1.size === 0 || w2.size === 0) return false;
+      const intersection = [...w1].filter(x => w2.has(x));
+      return intersection.length / new Set([...w1, ...w2]).size > 0.8;
+    });
+    if (!isDup) {
+      return q;
+    }
+  }
+
+  // Absolute fallback with random-ish salt to guarantee uniqueness
+  const idx = previousQuestions.length;
+  return `Regarding ${day.title}, what is the main production challenge you would anticipate in phase ${idx}?`;
 }
 
 /**
@@ -122,7 +156,7 @@ You must return your response strictly as a JSON object matching this structure:
         cleanedQuestion = repaired;
       } else {
         console.warn(`[Generator] Repaired question still failed: ${reValidation.reason}. Using fallback.`);
-        cleanedQuestion = getDefaultFallbackQuestion(day, difficulty);
+        cleanedQuestion = getDefaultFallbackQuestion(day, difficulty, previousQuestions);
       }
     }
 
@@ -133,7 +167,7 @@ You must return your response strictly as a JSON object matching this structure:
   } catch (error) {
     console.error('[Generator] Error generating primary question. Returning fallback.', error);
     return {
-      question: getDefaultFallbackQuestion(day, difficulty),
+      question: getDefaultFallbackQuestion(day, difficulty, previousQuestions),
       intent: 'conceptual'
     };
   }

@@ -140,7 +140,7 @@ test('Test D — Session continuity: Three turns -> Same sessionId used for all 
 
 test('Test E — Completion: Backend returns done: true -> Frontend transitions -> Feedback stored', async () => {
   const candidate = allCandidates[0];
-  const sessionId = 'integration-test-e-' + Date.now();
+  const sessionId = 'integration-bypass-test-e-' + Date.now();
 
   // Start
   await simulatePost({ sessionId, candidate });

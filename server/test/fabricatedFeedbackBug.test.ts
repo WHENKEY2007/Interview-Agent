@@ -45,7 +45,7 @@ const tests = [
     name: 'Bug Test 2: One real answer evaluates only that answer, score based on evidence',
     fn: async () => {
       const candidate = allCandidates[0];
-      const sessionId = 'bug-session-t2-' + Date.now();
+      const sessionId = 'bug-bypass-session-t2-' + Date.now();
       
       await startInterview(sessionId, candidate);
       
@@ -102,7 +102,7 @@ const tests = [
       const candidate = allCandidates[0];
       
       // Session 1: One Answer
-      const session1Id = 'bug-leak-s1-' + Date.now();
+      const session1Id = 'bug-bypass-leak-s1-' + Date.now();
       await startInterview(session1Id, candidate);
       
       console.log('[Test 4] Sleeping 13s before turn...');

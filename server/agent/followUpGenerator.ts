@@ -6,15 +6,39 @@ import { validateQuestion, repairQuestion } from './validation';
 
 /**
  * Generates a fallback follow-up question when generation or validation fails.
+ * Checks against previous questions to avoid duplicates.
  */
-export function getDefaultFallbackFollowUp(strategy: string): string {
+export function getDefaultFallbackFollowUp(strategy: string, previousQuestions: string[] = []): string {
+  const options = [];
   if (strategy === 'redirect') {
-    return "Let's stay focused on today's curriculum. Can you explain your choice of architecture here?";
+    options.push("Let's stay focused on today's curriculum. Can you explain your choice of architecture here?");
+    options.push("Let's bring it back to the core objectives. How does this system handle data updates?");
+  } else if (strategy === 'challenge') {
+    options.push("What main latency or scale trade-offs would you consider in this setup?");
+    options.push("How does your solution scale when database operations grow by ten times?");
+  } else {
+    options.push("How would you handle failure recovery or edge cases in that step?");
+    options.push("What monitoring metrics would you collect to ensure this step is performing well?");
   }
-  if (strategy === 'challenge') {
-    return "What main latency or scale trade-offs would you consider in this setup?";
+  options.push("Could you elaborate on the specific tools and libraries you would use here?");
+
+  // Find the first one that is not duplicate (similarity < 0.8)
+  for (const q of options) {
+    const isDup = previousQuestions.some(prev => {
+      const stopwords = new Set(['what', 'how', 'why', 'is', 'are', 'the', 'a', 'to', 'for', 'in', 'on', 'with', 'and', 'or', 'you', 'your']);
+      const w1 = new Set(q.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2 && !stopwords.has(w)));
+      const w2 = new Set(prev.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2 && !stopwords.has(w)));
+      if (w1.size === 0 || w2.size === 0) return false;
+      const intersection = [...w1].filter(x => w2.has(x));
+      return intersection.length / new Set([...w1, ...w2]).size > 0.8;
+    });
+    if (!isDup) {
+      return q;
+    }
   }
-  return "How would you handle failure recovery or edge cases in that step?";
+
+  const idx = previousQuestions.length;
+  return `What is the primary technical trade-off of this approach in question ${idx}?`;
 }
 
 /**
@@ -83,7 +107,7 @@ STRATEGY-SPECIFIC BEHAVIOR:
         cleaned = repaired;
       } else {
         console.warn(`[FollowUp] Repaired follow-up still failed: ${reValidation.reason}. Using fallback.`);
-        cleaned = getDefaultFallbackFollowUp(strategy);
+        cleaned = getDefaultFallbackFollowUp(strategy, previousQuestions);
       }
     }
 
@@ -117,7 +141,7 @@ STRATEGY-SPECIFIC BEHAVIOR:
   } catch (error) {
     console.error('[FollowUp] Error generating follow-up. Returning fallback.', error);
     return {
-      text: getDefaultFallbackFollowUp(strategy),
+      text: getDefaultFallbackFollowUp(strategy, previousQuestions),
       badge: 'Follow-up',
       difficultyShift: 'same'
     };

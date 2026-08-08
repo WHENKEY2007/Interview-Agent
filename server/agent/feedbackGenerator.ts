@@ -61,14 +61,70 @@ export function generateNotAssessableFeedback(candidate: CandidateProfile): Fina
 /**
  * Generates an incomplete feedback report for sessions that ended early before minimum requirements were met.
  */
-export function generateIncompleteFeedback(candidate: CandidateProfile, evaluations: AnswerEvaluation[]): FinalFeedback {
+export async function generateIncompleteFeedback(candidate: CandidateProfile, evaluations: AnswerEvaluation[]): Promise<FinalFeedback> {
   const name = candidate.member?.name || candidate.name || 'Candidate';
   const questionsCount = evaluations.length;
   const uniqueDays = new Set(evaluations.map(e => e.day));
   const topicsCount = uniqueDays.size;
 
+  const systemInstruction = `You are a Principal AI Architect and Lead Technical Interviewer at ABTalks evaluating an early-terminated, INCOMPLETE technical interview.
+You must analyze the candidate's available responses and return a professional 3-4 sentence evidence-based summary of their performance so far.
+Since the interview is incomplete:
+1. Do NOT provide overall scores or performance ratings.
+2. Explain what was assessed, what conceptual knowledge was observed, and why the evidence remains insufficient.
+3. Be professional and grounded strictly in the candidate's answers.
+
+Format your output exactly as follows:
+{
+  "summary": "Your dynamic summary text here"
+}
+`;
+
+  const prompt = `
+Candidate Profile:
+- Name: ${name}
+- Role: ${candidate.member?.jobRole || 'Software Engineer'}
+
+Evaluations Collected so far (${questionsCount} questions, ${topicsCount} topics):
+${evaluations.map((e, idx) => `
+[Q${idx + 1} - ${e.day} - ${e.topic}]
+Question: ${e.question}
+Candidate Answer: ${e.answer}
+Status: ${e.status}
+Notes: ${e.evaluation}
+`).join('\n')}
+
+Please generate the dynamic incomplete summary JSON.
+`;
+
+  let summary = `The interview ended early and is incomplete. ${questionsCount} questions were answered across ${topicsCount} curriculum topics, but the interview ended before the required four-topic coverage was reached.`;
+  try {
+    const responseText = await generateContent(prompt, systemInstruction, true);
+    const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleanJson);
+    if (parsed.summary) {
+      summary = parsed.summary;
+    }
+  } catch (e) {
+    console.error('[Feedback] Failed to generate dynamic incomplete summary:', e);
+  }
+
+  const topicPerformance = Array.from(new Set(evaluations.map(e => `${e.day} - ${e.topic}`)))
+    .map(key => {
+      const [dayStr, topicStr] = key.split(' - ');
+      const topicEvals = evaluations.filter(e => e.day === dayStr && e.topic === topicStr);
+      return {
+        day: dayStr,
+        topic: topicStr,
+        score: 0,
+        level: 'needs-improvement' as const,
+        strengths: [...new Set(topicEvals.flatMap(e => e.strengths))].slice(0, 2),
+        gaps: [...new Set(topicEvals.flatMap(e => e.improvements))].slice(0, 2)
+      };
+    });
+
   return {
-    summary: `The interview ended early and is incomplete. Questions answered: ${questionsCount}. Topics assessed: ${topicsCount}. Not enough evidence was collected to reliably assess technical performance.`,
+    summary,
     overallScore: null,
     technicalScore: null,
     depthScore: null,
@@ -76,7 +132,7 @@ export function generateIncompleteFeedback(candidate: CandidateProfile, evaluati
     strengths: [],
     gaps: [],
     next: [],
-    topicPerformance: [],
+    topicPerformance,
     questionReviews: evaluations,
     recommendations: ["Ensure you complete at least 8 questions across 4 different curriculum days to receive a full assessment."]
   };
@@ -118,8 +174,11 @@ export async function generateFinalFeedback(
                     session.sessionId.includes('-t') || 
                     session.sessionId.includes('-s') ||
                     /test|mock|spec/i.test(session.sessionId);
+  const isForceIncomplete = session?.sessionId?.includes('incomplete');
+  const shouldBypassIncomplete = isTesting && !isForceIncomplete;
+
   const uniqueDaysCovered = new Set(evaluations.map(e => e.day));
-  if (!isTesting && (evaluations.length < 8 || uniqueDaysCovered.size < 4)) {
+  if (!shouldBypassIncomplete && (evaluations.length < 8 || uniqueDaysCovered.size < 4)) {
     console.log(`[Feedback] Insufficient evidence (Questions: ${evaluations.length}/8, Days: ${uniqueDaysCovered.size}/4). Generating Incomplete report.`);
     return generateIncompleteFeedback(candidate, evaluations);
   }

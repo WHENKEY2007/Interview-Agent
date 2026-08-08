@@ -121,6 +121,32 @@ export async function handleCandidateMessage(
     };
   }
 
+  // Check for duplicate submission / retry on the backend
+  if (session.turns.length >= 2) {
+    const lastTurn = session.turns[session.turns.length - 1];
+    const prevTurn = session.turns[session.turns.length - 2];
+    if (prevTurn.role === 'candidate' && prevTurn.text === message && lastTurn.role === 'interviewer') {
+      console.log(`[Router] Duplicate/Retry detected. Returning already-generated question: "${lastTurn.text}"`);
+      return {
+        reply: lastTurn.text,
+        done: session.status === 'COMPLETED'
+      };
+    }
+  }
+
+  // Clean up any partial state from a previously interrupted turn with the same message
+  const lastTurnItem = session.turns[session.turns.length - 1];
+  if (lastTurnItem && lastTurnItem.role === 'candidate' && lastTurnItem.text === message) {
+    session.turns.pop();
+  }
+  const duplicateEvalIndex = session.evaluations.findIndex(
+    e => e.question === session.currentQuestion && e.answer === message
+  );
+  if (duplicateEvalIndex !== -1) {
+    session.evaluations.splice(duplicateEvalIndex, 1);
+    session.questionsAnswered = Math.max(0, session.questionsAnswered - 1);
+  }
+
   // Check for empty or whitespace-only messages independently on the backend
   if (!message || message.trim().length === 0) {
     return {
@@ -181,8 +207,11 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
   }
 
   // Normal turn - evaluate answer
+  const startTotal = Date.now();
+  const startEval = Date.now();
   const day = getCurriculumDay(session.currentQuestionDay)!;
   const evalResult = await evaluateAnswer(session.currentQuestion, message, day);
+  const evalDuration = Date.now() - startEval;
 
   // Record evaluation item
   const evalItem: AnswerEvaluation = {
@@ -241,7 +270,7 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
       .filter(t => t.role === 'interviewer')
       .map(t => t.text);
 
-    // 2. Generate follow-up response
+    const startGen = Date.now();
     const followUp = await generateFollowUp(
       session.candidate,
       day,
@@ -251,6 +280,12 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
       decision.strategy,
       prevQuestions
     );
+    const genDuration = Date.now() - startGen;
+    const totalDuration = Date.now() - startTotal;
+    console.log(`\n[Interview] session=${session.sessionId}`);
+    console.log(`[Evaluation] ${evalDuration}ms`);
+    console.log(`[QuestionGeneration] ${genDuration}ms`);
+    console.log(`[Total] ${totalDuration}ms\n`);
 
     // Update state parameters
     session.followUpsAsked += 1;
@@ -288,7 +323,14 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
     if ((meetsQuestionsConstraint && meetsDaysConstraint) || reachedMaxQuestions) {
       session.status = 'COMPLETED';
       
+      const startGen = Date.now();
       const finalReport = await generateFinalFeedback(session);
+      const genDuration = Date.now() - startGen;
+      const totalDuration = Date.now() - startTotal;
+      console.log(`\n[Interview] session=${session.sessionId}`);
+      console.log(`[Evaluation] ${evalDuration}ms`);
+      console.log(`[QuestionGeneration] ${genDuration}ms`);
+      console.log(`[Total] ${totalDuration}ms\n`);
       session.finalFeedback = finalReport;
 
       saveSession(sessionId, session);
@@ -338,7 +380,14 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
         .map(t => t.text);
 
       // Generate next primary question
+      const startGen = Date.now();
       const questionObj = await generatePrimaryQuestion(session.candidate, nextDay, targetDiff, prevQuestions);
+      const genDuration = Date.now() - startGen;
+      const totalDuration = Date.now() - startTotal;
+      console.log(`\n[Interview] session=${session.sessionId}`);
+      console.log(`[Evaluation] ${evalDuration}ms`);
+      console.log(`[QuestionGeneration] ${genDuration}ms`);
+      console.log(`[Total] ${totalDuration}ms\n`);
 
       // Prepend a very brief, natural transition context
       const transitionText = `Moving to ${nextDay.title}. `;
