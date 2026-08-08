@@ -9,7 +9,7 @@ interface TransitionState {
   line: string;
 }
 
-export function useInterviewSession(onComplete: (result: {durationSeconds: number;followUps: number;}) => void) {
+export function useInterviewSession(onComplete: (result: { durationSeconds: number; followUps: number }) => void) {
   const { 
     sessionId, 
     setSessionId, 
@@ -17,7 +17,8 @@ export function useInterviewSession(onComplete: (result: {durationSeconds: numbe
     setActiveCandidate,
     setFinalReport,
     setResult,
-    setEvaluations
+    setEvaluations,
+    addCompletedSession
   } = useSession();
 
   const [turns, setTurns] = useState<InterviewTurn[]>([]);
@@ -30,8 +31,10 @@ export function useInterviewSession(onComplete: (result: {durationSeconds: numbe
   const [clarifyUsed, setClarifyUsed] = useState(false);
   const [transition, setTransition] = useState<TransitionState | null>(null);
   const [seconds, setSeconds] = useState(0);
+  const [errorState, setErrorState] = useState<string | null>(null);
 
   const timers = useRef<number[]>([]);
+  const initialized = useRef<boolean>(false);
 
   // Timer effect
   useEffect(() => {
@@ -50,16 +53,13 @@ export function useInterviewSession(onComplete: (result: {durationSeconds: numbe
     timers.current.push(window.setTimeout(fn, ms));
   };
 
-  // Start Session on Mount
+  // Start or Restore Session on Mount
   useEffect(() => {
-    const startSession = async () => {
-      let activeId = sessionId;
-      if (!activeId) {
-        activeId = 'session-' + Math.random().toString(36).substring(2, 9);
-        setSessionId(activeId);
-      }
+    if (initialized.current) return;
+    initialized.current = true;
 
-      // Fallback candidate if none is selected
+    const startOrRestoreSession = async () => {
+      let activeId = sessionId;
       const candidateToUse = activeCandidate || {
         member: {
           id: 'CAND-001',
@@ -89,17 +89,47 @@ export function useInterviewSession(onComplete: (result: {durationSeconds: numbe
       }
 
       setEvaluating(true);
+      setErrorState(null);
+
       try {
+        // Try restoring session if activeId exists
+        if (activeId) {
+          const checkRes = await fetch(`/api/interview/session/${activeId}`);
+          if (checkRes.ok) {
+            const sessionData = await checkRes.json();
+            if (sessionData && sessionData.turns && sessionData.turns.length > 0 && sessionData.status === 'IN_PROGRESS') {
+              console.log(`[Session] Restored existing session ${activeId}`);
+              setTurns(sessionData.turns);
+              setCurrentTopic(sessionData.currentTopic || 'RAG');
+              setCurrentQuestionDay(sessionData.currentQuestionDay || 12);
+              setCurrentDifficulty(sessionData.currentQuestionDifficulty || 'Intermediate');
+              setQuestionNumber(sessionData.questionsAsked || 1);
+              setClarifyUsed(sessionData.clarifyUsed || false);
+              setEvaluations(sessionData.evaluations || []);
+              setEvaluating(false);
+              return;
+            }
+          }
+        }
+
+        // Initialize fresh session
+        const newSessionId = 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+        setSessionId(newSessionId);
+
         const res = await fetch('/api/interview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            sessionId: activeId,
+            sessionId: newSessionId,
             candidate: candidateToUse
           })
         });
+
+        if (!res.ok) {
+          throw new Error(`Server returned HTTP ${res.status}`);
+        }
+
         const data = await res.json();
-        
         setTurns(data.turns || []);
         setCurrentTopic(data.currentTopic || 'RAG');
         setCurrentQuestionDay(data.currentQuestionDay || 12);
@@ -107,21 +137,24 @@ export function useInterviewSession(onComplete: (result: {durationSeconds: numbe
         setQuestionNumber(data.questionsAsked || 1);
         setClarifyUsed(data.clarifyUsed || false);
         setEvaluations(data.evaluations || []);
-      } catch (err) {
-        console.error('Error contacting backend to start session:', err);
+      } catch (err: any) {
+        console.error('Error initializing backend session:', err);
+        setErrorState('Failed to connect to AI Interviewer server. Please refresh or retry.');
       } finally {
         setEvaluating(false);
       }
     };
 
-    startSession();
+    startOrRestoreSession();
   }, [sessionId, activeCandidate, setSessionId, setActiveCandidate, setEvaluations]);
 
   const submitAnswer = useCallback(
     async (text: string) => {
+      if (evaluating) return; // Prevent duplicate submissions
       setEvaluating(true);
+      setErrorState(null);
 
-      // Instantly append user message to frontend UI for smooth responsiveness
+      // Instantly append user message to UI for smooth responsiveness
       const candidateTurnId = `local-${Date.now()}`;
       setTurns((prev) => [...prev, { id: candidateTurnId, role: 'candidate', text }]);
 
@@ -134,6 +167,11 @@ export function useInterviewSession(onComplete: (result: {durationSeconds: numbe
             message: text
           })
         });
+
+        if (!res.ok) {
+          throw new Error(`Server error (${res.status}). Failed to process response.`);
+        }
+
         const data = await res.json();
 
         // Check if backend session is done
@@ -141,10 +179,31 @@ export function useInterviewSession(onComplete: (result: {durationSeconds: numbe
           setFinalReport(data.feedback);
           setEvaluations(data.evaluations || []);
           
-          // Calculate follow-ups based on turns
-          const followUpsNum = data.turns.filter((t: any) => t.badge && t.badge !== 'Clarifying the question').length;
-          setResult({ durationSeconds: seconds, answered: data.questionsAnswered || 8, followUps: followUpsNum });
-          onComplete({ durationSeconds: seconds, followUps: followUpsNum });
+          const followUpsNum = (data.turns || []).filter((t: any) => t.badge && t.badge !== 'Clarifying the question').length;
+          const duration = seconds;
+          const questionsCount = (data.evaluations || []).length || 8;
+          
+          setResult({ durationSeconds: duration, answered: questionsCount, followUps: followUpsNum });
+
+          // Save completed session to history
+          const candName = activeCandidate?.member?.name || activeCandidate?.name || 'Candidate';
+          const candRole = activeCandidate?.member?.jobRole || activeCandidate?.jobRole || 'Software Engineer';
+          const sessionItem = {
+            id: sessionId || `session-${Date.now()}`,
+            date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            candidateName: candName,
+            candidateRole: candRole,
+            topics: Array.from(new Set((data.evaluations || []).map((e: any) => e.topic))) as string[],
+            questions: questionsCount,
+            minutes: Math.max(1, Math.round(duration / 60)),
+            score: data.feedback?.overallScore || 80,
+            summary: data.feedback?.summary || 'Interview completed.',
+            report: data.feedback,
+            evaluations: data.evaluations || []
+          };
+          addCompletedSession(sessionItem);
+
+          onComplete({ durationSeconds: duration, followUps: followUpsNum });
           return;
         }
 
@@ -158,8 +217,7 @@ export function useInterviewSession(onComplete: (result: {durationSeconds: numbe
 
           schedule(() => {
             setTransition(null);
-            // Sync all states from backend response
-            setTurns(data.turns);
+            setTurns(data.turns || []);
             setCurrentTopic(data.currentTopic);
             setCurrentQuestionDay(data.currentQuestionDay);
             setCurrentDifficulty(data.currentQuestionDifficulty);
@@ -169,7 +227,7 @@ export function useInterviewSession(onComplete: (result: {durationSeconds: numbe
           }, 2600);
         } else {
           // Normal turn sync
-          setTurns(data.turns);
+          setTurns(data.turns || []);
           setCurrentTopic(data.currentTopic);
           setCurrentQuestionDay(data.currentQuestionDay);
           setCurrentDifficulty(data.currentQuestionDifficulty);
@@ -177,18 +235,22 @@ export function useInterviewSession(onComplete: (result: {durationSeconds: numbe
           setClarifyUsed(data.clarifyUsed);
           setEvaluations(data.evaluations || []);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error submitting answer to backend:', err);
+        setErrorState('Network error communicating with interviewer. Please try submitting again.');
+        // Revert temporary turn on hard failure
+        setTurns((prev) => prev.filter((t) => t.id !== candidateTurnId));
       } finally {
         setEvaluating(false);
       }
     },
-    [sessionId, currentTopic, onComplete, seconds, setFinalReport, setResult, setEvaluations]
+    [sessionId, currentTopic, evaluating, onComplete, seconds, setFinalReport, setResult, setEvaluations, addCompletedSession, activeCandidate]
   );
 
   const askClarification = useCallback(async () => {
-    if (clarifyUsed) return;
+    if (clarifyUsed || evaluating) return;
     setEvaluating(true);
+    setErrorState(null);
 
     try {
       const res = await fetch('/api/interview', {
@@ -199,20 +261,26 @@ export function useInterviewSession(onComplete: (result: {durationSeconds: numbe
           message: '[CLARIFY]'
         })
       });
-      const data = await res.json();
 
-      setTurns(data.turns);
+      if (!res.ok) throw new Error('Clarification request failed.');
+
+      const data = await res.json();
+      setTurns(data.turns || []);
       setClarifyUsed(data.clarifyUsed);
       setEvaluations(data.evaluations || []);
     } catch (err) {
       console.error('Error asking for clarification:', err);
+      setErrorState('Could not fetch question clarification. Please try again.');
     } finally {
       setEvaluating(false);
     }
-  }, [clarifyUsed, sessionId, setEvaluations]);
+  }, [clarifyUsed, evaluating, sessionId, setEvaluations]);
 
   const endEarly = useCallback(async () => {
+    if (evaluating) return;
     setEvaluating(true);
+    setErrorState(null);
+
     try {
       const res = await fetch('/api/interview', {
         method: 'POST',
@@ -222,23 +290,48 @@ export function useInterviewSession(onComplete: (result: {durationSeconds: numbe
           message: '[END_EARLY]'
         })
       });
-      const data = await res.json();
 
+      if (!res.ok) throw new Error('End early request failed.');
+
+      const data = await res.json();
       if (data.done) {
         setFinalReport(data.feedback);
         setEvaluations(data.evaluations || []);
-        const followUpsNum = data.turns.filter((t: any) => t.badge && t.badge !== 'Clarifying the question').length;
-        setResult({ durationSeconds: seconds, answered: data.questionsAnswered || 4, followUps: followUpsNum });
-        onComplete({ durationSeconds: seconds, followUps: followUpsNum });
+        
+        const followUpsNum = (data.turns || []).filter((t: any) => t.badge && t.badge !== 'Clarifying the question').length;
+        const duration = seconds;
+        const questionsCount = (data.evaluations || []).length || 4;
+
+        setResult({ durationSeconds: duration, answered: questionsCount, followUps: followUpsNum });
+
+        // Save completed session
+        const candName = activeCandidate?.member?.name || activeCandidate?.name || 'Candidate';
+        const candRole = activeCandidate?.member?.jobRole || activeCandidate?.jobRole || 'Software Engineer';
+        const sessionItem = {
+          id: sessionId || `session-${Date.now()}`,
+          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          candidateName: candName,
+          candidateRole: candRole,
+          topics: Array.from(new Set((data.evaluations || []).map((e: any) => e.topic))) as string[],
+          questions: questionsCount,
+          minutes: Math.max(1, Math.round(duration / 60)),
+          score: data.feedback?.overallScore || 75,
+          summary: data.feedback?.summary || 'Interview completed early.',
+          report: data.feedback,
+          evaluations: data.evaluations || []
+        };
+        addCompletedSession(sessionItem);
+
+        onComplete({ durationSeconds: duration, followUps: followUpsNum });
       }
     } catch (err) {
       console.error('Error ending session early:', err);
+      setErrorState('Could not complete interview session. Please try again.');
     } finally {
       setEvaluating(false);
     }
-  }, [sessionId, onComplete, seconds, setFinalReport, setResult, setEvaluations]);
+  }, [evaluating, sessionId, onComplete, seconds, setFinalReport, setResult, setEvaluations, addCompletedSession, activeCandidate]);
 
-  // Map state to the dynamic question object needed by the LiveInterview UI
   const question = {
     topic: currentTopic,
     day: `Day ${currentQuestionDay}`,
@@ -254,6 +347,7 @@ export function useInterviewSession(onComplete: (result: {durationSeconds: numbe
     clarifyUsed,
     transition,
     seconds,
+    errorState,
     submitAnswer,
     askClarification,
     endEarly

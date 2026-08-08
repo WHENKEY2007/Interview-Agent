@@ -18,7 +18,8 @@ export function TopNav() {
   const [open, setOpen] = useState(false);
   const { activeCandidate } = useSession();
   const cand = activeCandidate || fallbackCandidate;
-  const initials = getInitials(cand.name);
+  const candName = cand.member ? cand.member.name : (cand.name || 'Candidate');
+  const initials = getInitials(candName);
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-base/85 backdrop-blur-xl">
@@ -57,7 +58,7 @@ export function TopNav() {
 
         <div className="flex items-center gap-3">
           <div className="hidden text-right sm:block">
-            <p className="text-[13px] font-medium leading-tight text-fg">{cand.name}</p>
+            <p className="text-[13px] font-medium leading-tight text-fg">{candName}</p>
             <p className="text-2xs leading-tight text-dim">{cand.cohort || 'ABTalks AI Cohort · Spring'}</p>
           </div>
           <button
