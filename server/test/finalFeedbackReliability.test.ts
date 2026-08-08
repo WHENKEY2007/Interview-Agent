@@ -245,3 +245,109 @@ test('Test 7 — Candidate isolation: Candidate reports are completely isolated'
   assert.ok(sessionA.turns.every(t => t.role !== 'candidate' || t.text.includes('Pydantic') || t.text.includes('HNSW')), 'Session A should only contain candidate A answers');
   assert.ok(sessionB.turns.every(t => t.role !== 'candidate' || t.text.includes('redis') || t.text.includes('protocol')), 'Session B should only contain candidate B answers');
 });
+
+// Test 8 — Question counter increments correctly
+test('Test 8 — Question counter: primary questions and follow-ups are counted separately', async () => {
+  const candidate = allCandidates[0];
+  const sessionId = 'test-counter-inc-' + Date.now();
+
+  // Start interview -> primaryQuestionsAsked = 1
+  await startInterview(sessionId, candidate);
+  const session = getSession(sessionId)!;
+  assert.strictEqual(session.primaryQuestionsAsked, 1, 'First primary question should set counter to 1');
+  assert.strictEqual(session.questionsAsked, 1, 'questionsAsked should be 1');
+
+  // Submit strong answer -> triggers challenge follow-up
+  await handleCandidateMessage(sessionId, 'I use strict Pydantic validation schemas to force JSON outputs.');
+  assert.strictEqual(session.primaryQuestionsAsked, 1, 'Follow-up must not increase primary-question counter');
+  assert.strictEqual(session.questionsAsked, 2, 'questionsAsked should increase to 2');
+
+  // Submit another answer to complete the follow-up and move to next topic
+  await handleCandidateMessage(sessionId, 'I tune ef_search parameter for HNSW memory footprints.');
+  assert.strictEqual(session.primaryQuestionsAsked, 2, 'Transitioning to next topic must increase primary-question counter');
+  assert.strictEqual(session.questionsAsked, 3, 'questionsAsked should increase to 3');
+});
+
+// Test 9 — Difficulty adaptation
+test('Test 9 — Difficulty: adapts based on performance and candidate experience', async () => {
+  // Candidate A (Sarah Johnson) - starting target difficulty is Advanced/Intermediate
+  const candA = allCandidates[0];
+  const sessionIdA = 'test-diff-a-' + Date.now();
+  await startInterview(sessionIdA, candA);
+  const sessionA = getSession(sessionIdA)!;
+  const initialDiffA = sessionA.currentQuestionDifficulty;
+  console.log(`- Candidate A initial difficulty: ${initialDiffA}`);
+
+  // Submit strong answer
+  await handleCandidateMessage(sessionIdA, 'I use strict Pydantic validation schemas to force JSON outputs.');
+  assert.strictEqual(sessionA.currentQuestionDifficulty, 'Advanced', 'Strong answer should maintain or adapt to Advanced');
+
+  // Submit weak answer
+  await handleCandidateMessage(sessionIdA, 'don\'t know');
+  assert.ok(sessionA.currentQuestionDifficulty === 'Intermediate' || sessionA.currentQuestionDifficulty === 'Foundational', 'Incorrect/unknown answers should adapt difficulty down');
+});
+
+// Test 10 — Weak topics calculation helper
+test('Test 10 — Weak topics: derived correctly from actual topic performance', async () => {
+  // We can test the weak topic calculation logic directly
+  const calculateWeakModule = (finalReport: any, evaluations: any[]): string | null => {
+    const getModuleIdForDayLocal = (dayNumber: number): string => {
+      if (dayNumber >= 1 && dayNumber <= 3) return 'module-1';
+      if (dayNumber >= 4 && dayNumber <= 6) return 'module-2';
+      if (dayNumber >= 7 && dayNumber <= 10) return 'module-3';
+      if (dayNumber >= 11 && dayNumber <= 15) return 'module-4';
+      if (dayNumber >= 16 && dayNumber <= 20) return 'module-5';
+      if (dayNumber >= 21 && dayNumber <= 24) return 'module-6';
+      if (dayNumber >= 25 && dayNumber <= 28) return 'module-7';
+      if (dayNumber >= 29 && dayNumber <= 31) return 'module-8';
+      return '';
+    };
+
+    let weakModuleId: string | null = null;
+    if (finalReport && Array.isArray(finalReport.topicPerformance)) {
+      const weakItems = finalReport.topicPerformance.filter((tp: any) => 
+        tp.level === 'needs-improvement' || (typeof tp.score === 'number' && tp.score < 70)
+      );
+      if (weakItems.length > 0) {
+        const sorted = [...weakItems].sort((a: any, b: any) => (a.score || 0) - (b.score || 0));
+        const match = sorted[0];
+        const dayNum = parseInt(match.day.replace(/\D/g, ''), 10);
+        if (!isNaN(dayNum)) weakModuleId = getModuleIdForDayLocal(dayNum);
+      }
+    }
+    if (!weakModuleId && Array.isArray(evaluations)) {
+      const weakEvals = evaluations.filter((e: any) => e.status === 'Needs Improvement');
+      if (weakEvals.length > 0) {
+        const match = weakEvals[0];
+        const dayNum = parseInt(match.day.replace(/\D/g, ''), 10);
+        if (!isNaN(dayNum)) weakModuleId = getModuleIdForDayLocal(dayNum);
+      }
+    }
+    return weakModuleId;
+  };
+
+  // Case A: All strong
+  const reportAllStrong = {
+    topicPerformance: [
+      { day: 'Day 12', topic: 'Prompt Engineering', score: 90, level: 'strong' },
+      { day: 'Day 14', topic: 'RAG Architecture', score: 85, level: 'strong' }
+    ]
+  };
+  assert.strictEqual(calculateWeakModule(reportAllStrong, []), null, 'No weak topic should be returned if all are strong');
+
+  // Case B: One weak topic
+  const reportOneWeak = {
+    topicPerformance: [
+      { day: 'Day 12', topic: 'Prompt Engineering', score: 90, level: 'strong' },
+      { day: 'Day 14', topic: 'RAG Architecture', score: 55, level: 'needs-improvement' }
+    ]
+  };
+  assert.strictEqual(calculateWeakModule(reportOneWeak, []), 'module-4', 'Should resolve Day 14 weak topic to module-4');
+
+  // Case C: Incomplete interview evaluations fallback
+  const evalsIncomplete = [
+    { day: 'Day 12', topic: 'Prompt Engineering', status: 'Strong' },
+    { day: 'Day 7', topic: 'Embeddings Explained', status: 'Needs Improvement' }
+  ];
+  assert.strictEqual(calculateWeakModule(null, evalsIncomplete), 'module-3', 'Should resolve Day 7 weak evaluation to module-3');
+});

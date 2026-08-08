@@ -62,7 +62,7 @@ Please evaluate this answer and output only the valid JSON object.`;
       result.quality = 'partial';
     }
     // Limit score ranges
-    result.score = Math.max(0, Math.min(100, result.score || 70));
+    result.score = Math.max(0, Math.min(100, (result.score !== undefined && result.score !== null) ? result.score : 70));
     if (!result.misconceptions) {
       result.misconceptions = [];
     }

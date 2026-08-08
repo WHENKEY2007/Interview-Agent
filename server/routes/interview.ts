@@ -37,6 +37,8 @@ router.post('/interview', async (req: Request, res: Response): Promise<Response>
         currentQuestionDifficulty: sessionState.currentQuestionDifficulty,
         questionsAsked: sessionState.questionsAsked,
         questionsAnswered: sessionState.questionsAnswered,
+        primaryQuestionsAsked: sessionState.primaryQuestionsAsked,
+        followUpsAsked: sessionState.followUpsAsked,
         clarifyUsed: sessionState.clarifyUsed,
         evaluations: sessionState.evaluations
       };
@@ -61,6 +63,8 @@ router.post('/interview', async (req: Request, res: Response): Promise<Response>
         currentQuestionDifficulty: sessionState.currentQuestionDifficulty,
         questionsAsked: sessionState.questionsAsked,
         questionsAnswered: sessionState.questionsAnswered,
+        primaryQuestionsAsked: sessionState.primaryQuestionsAsked,
+        followUpsAsked: sessionState.followUpsAsked,
         clarifyUsed: sessionState.clarifyUsed,
         evaluations: sessionState.evaluations
       };

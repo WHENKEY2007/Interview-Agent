@@ -292,7 +292,14 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
     session.questionsAsked += 1;
     session.currentTopicDepth += 1;
     session.currentQuestion = followUp.text;
-    session.currentQuestionDifficulty = followUp.difficultyShift === 'up' ? 'Advanced' : followUp.difficultyShift === 'down' ? 'Foundational' : 'Intermediate';
+    
+    let nextDifficulty = session.currentQuestionDifficulty as 'Foundational' | 'Intermediate' | 'Advanced';
+    if (followUp.difficultyShift === 'up') {
+      nextDifficulty = nextDifficulty === 'Foundational' ? 'Intermediate' : 'Advanced';
+    } else if (followUp.difficultyShift === 'down') {
+      nextDifficulty = nextDifficulty === 'Advanced' ? 'Intermediate' : 'Foundational';
+    }
+    session.currentQuestionDifficulty = nextDifficulty;
     session.currentQuestionType = 'followup';
 
     // Record turn
@@ -341,21 +348,17 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
         feedback: finalReport
       };
     } else {
-      // Dynamic Difficulty Adaptation: Evaluate average score of completed topic
+      // Dynamic Difficulty Adaptation: Adapt based on previous difficulty and quality of responses
       const topicEvals = session.evaluations.filter(e => e.topic === session.currentTopic);
       const lastEval = topicEvals[topicEvals.length - 1];
       
-      let targetDiff: 'Foundational' | 'Intermediate' | 'Advanced' = 'Intermediate';
+      let targetDiff = (session.currentQuestionDifficulty || session.interviewPlan?.targetDifficulty || 'Intermediate') as 'Foundational' | 'Intermediate' | 'Advanced';
       if (lastEval) {
         if (lastEval.status === 'Strong') {
-          targetDiff = 'Advanced';
+          targetDiff = targetDiff === 'Foundational' ? 'Intermediate' : 'Advanced';
         } else if (lastEval.status === 'Needs Improvement') {
-          targetDiff = 'Foundational';
-        } else {
-          targetDiff = 'Intermediate';
+          targetDiff = targetDiff === 'Advanced' ? 'Intermediate' : 'Foundational';
         }
-      } else {
-        targetDiff = session.interviewPlan?.targetDifficulty || 'Intermediate';
       }
 
       console.log(`[Difficulty] Adapting target difficulty for next topic to: "${targetDiff}" based on performance.`);

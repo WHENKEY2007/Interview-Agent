@@ -103,7 +103,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
               setCurrentTopic(sessionData.currentTopic || 'RAG');
               setCurrentQuestionDay(sessionData.currentQuestionDay || 12);
               setCurrentDifficulty(sessionData.currentQuestionDifficulty || 'Intermediate');
-              setQuestionNumber(sessionData.questionsAsked || 1);
+              setQuestionNumber(sessionData.primaryQuestionsAsked || 1);
               setClarifyUsed(sessionData.clarifyUsed || false);
               setEvaluations(sessionData.evaluations || []);
               setSeconds(sessionData.durationSeconds || 0);
@@ -135,7 +135,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
         setCurrentTopic(data.currentTopic || 'RAG');
         setCurrentQuestionDay(data.currentQuestionDay || 12);
         setCurrentDifficulty(data.currentQuestionDifficulty || 'Intermediate');
-        setQuestionNumber(data.questionsAsked || 1);
+        setQuestionNumber(data.primaryQuestionsAsked || 1);
         setClarifyUsed(data.clarifyUsed || false);
         setEvaluations(data.evaluations || []);
       } catch (err: any) {
@@ -233,7 +233,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
             setCurrentTopic(data.currentTopic);
             setCurrentQuestionDay(data.currentQuestionDay);
             setCurrentDifficulty(data.currentQuestionDifficulty);
-            setQuestionNumber(data.questionsAsked);
+            setQuestionNumber(data.primaryQuestionsAsked || 1);
             setClarifyUsed(data.clarifyUsed);
             setEvaluations(data.evaluations || []);
           }, 2600);
@@ -243,7 +243,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
           setCurrentTopic(data.currentTopic);
           setCurrentQuestionDay(data.currentQuestionDay);
           setCurrentDifficulty(data.currentQuestionDifficulty);
-          setQuestionNumber(data.questionsAsked);
+          setQuestionNumber(data.primaryQuestionsAsked || 1);
           setClarifyUsed(data.clarifyUsed);
           setEvaluations(data.evaluations || []);
         }

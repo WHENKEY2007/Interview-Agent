@@ -89,3 +89,12 @@ export function getCurriculumCoverage(candidate: CandidateProfile): CohortTopic[
     };
   });
 }
+
+/**
+ * Resolves a curriculum day number (e.g. 12) to its module ID (e.g. "module-4").
+ */
+export function getModuleIdForDay(dayNumber: number): string {
+  const modules = curriculumData.modules;
+  const mod = modules.find(m => dayNumber >= m.days[0] && dayNumber <= m.days[1]);
+  return mod ? `module-${mod.n}` : '';
+}

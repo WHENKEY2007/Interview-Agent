@@ -22,6 +22,8 @@ export interface InterviewResponse {
   currentQuestionDifficulty?: string;
   questionsAsked?: number;
   questionsAnswered?: number;
+  primaryQuestionsAsked?: number;
+  followUpsAsked?: number;
   clarifyUsed?: boolean;
   evaluations?: AnswerEvaluation[];
 }

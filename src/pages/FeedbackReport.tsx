@@ -13,6 +13,7 @@ import { QuestionReviewCard } from '../components/feedback/QuestionReviewCard';
 import { NextStepCard } from '../components/feedback/NextStepCard';
 import { candidate as fallbackCandidate } from '../data/cohort';
 import { useSession } from '../contexts/SessionContext';
+import { getModuleIdForDay } from '../utils/curriculumCoverage';
 
 export function FeedbackReport() {
   const navigate = useNavigate();
@@ -21,6 +22,34 @@ export function FeedbackReport() {
 
   const candidate: any = activeCandidate || fallbackCandidate;
   const name = candidate.member?.name || candidate.name;
+
+  // Calculate weak topic
+  let weakModuleId: string | null = null;
+
+  if (finalReport && Array.isArray(finalReport.topicPerformance)) {
+    const weakItems = finalReport.topicPerformance.filter((tp: any) => 
+      tp.level === 'needs-improvement' || (typeof tp.score === 'number' && tp.score < 70)
+    );
+    if (weakItems.length > 0) {
+      const sorted = [...weakItems].sort((a: any, b: any) => (a.score || 0) - (b.score || 0));
+      const match = sorted[0];
+      const dayNum = parseInt(match.day.replace(/\D/g, ''), 10);
+      if (!isNaN(dayNum)) {
+        weakModuleId = getModuleIdForDay(dayNum);
+      }
+    }
+  }
+
+  if (!weakModuleId && Array.isArray(evaluations)) {
+    const weakEvals = evaluations.filter((e: any) => e.status === 'Needs Improvement');
+    if (weakEvals.length > 0) {
+      const match = weakEvals[0];
+      const dayNum = parseInt(match.day.replace(/\D/g, ''), 10);
+      if (!isNaN(dayNum)) {
+        weakModuleId = getModuleIdForDay(dayNum);
+      }
+    }
+  }
   
   const isNotAssessable = !finalReport || finalReport.overallScore === null || finalReport.overallScore === undefined || evaluations.length === 0;
 
@@ -126,9 +155,26 @@ export function FeedbackReport() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="ghost" size="md" icon={<TargetIcon size={15} />}>
-              Review Weak Topics
-            </Button>
+            {weakModuleId ? (
+              <Button 
+                variant="ghost" 
+                size="md" 
+                onClick={() => navigate(`/progress?topic=${weakModuleId}`)}
+                icon={<TargetIcon size={15} />}
+              >
+                Review Weak Topic
+              </Button>
+            ) : (
+              <Button 
+                variant="ghost" 
+                size="md" 
+                disabled 
+                title="Not enough interview data to identify weak topics."
+                icon={<TargetIcon size={15} />}
+              >
+                No weak topics identified
+              </Button>
+            )}
             <Button variant="secondary" size="md" onClick={() => navigate('/')}>
               Back to Dashboard
             </Button>
