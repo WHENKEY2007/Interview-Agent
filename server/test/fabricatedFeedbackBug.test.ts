@@ -7,7 +7,7 @@ import { generateFinalFeedback } from '../agent/feedbackGenerator';
 loadData();
 
 const allCandidates = getCandidates();
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, process.env.MOCK_LLM === 'true' ? 0 : ms));
 
 console.log('================================================');
 console.log('RUNNING FABRICATED FEEDBACK BUG REGRESSION TESTS');
