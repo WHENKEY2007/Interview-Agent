@@ -277,21 +277,12 @@ const tests = [
   }
 ];
 
-async function runAll() {
-  for (const test of tests) {
-    console.log(`\n--- Running: ${test.name} ---`);
-    try {
-      await test.fn();
-      console.log(`[PASS] ${test.name}`);
-    } catch (error: any) {
-      console.error(`[FAIL] ${test.name}`);
-      console.error(error.stack || error);
-      process.exit(1);
-    }
-  }
-  console.log('\n================================================');
-  console.log('ALL PHASE 4 FEEDBACK ENGINE TESTS PASSED!');
-  console.log('================================================');
-}
+import { test } from 'vitest';
 
-runAll();
+tests.forEach((t) => {
+  test(t.name, async () => {
+    await t.fn();
+    console.log('Sleeping 13s to respect free tier RPM rate limit...');
+    await new Promise((resolve) => setTimeout(resolve, 13000));
+  });
+});

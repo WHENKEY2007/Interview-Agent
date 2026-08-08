@@ -8,6 +8,10 @@ import { generateContent } from '../llm/llmClient';
 import { generateInterviewPlan } from './interviewPlanner';
 import { determineNextAction } from './interviewDecisionEngine';
 
+const MIN_INTERVIEW_QUESTIONS = 8;
+const MIN_CURRICULUM_DAYS = 4;
+const MAX_INTERVIEW_QUESTIONS = 10;
+
 /**
  * Starts a new interview session.
  */
@@ -277,9 +281,9 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
   } else {
     // Determine whether completion criteria are met
     const coveredDaysCount = session.curriculumDaysCovered.length;
-    const meetsQuestionsConstraint = session.questionsAsked >= 8;
-    const meetsDaysConstraint = coveredDaysCount >= 4;
-    const reachedMaxQuestions = session.questionsAsked >= 10;
+    const meetsQuestionsConstraint = session.questionsAsked >= MIN_INTERVIEW_QUESTIONS;
+    const meetsDaysConstraint = coveredDaysCount >= MIN_CURRICULUM_DAYS;
+    const reachedMaxQuestions = session.questionsAsked >= MAX_INTERVIEW_QUESTIONS;
 
     if ((meetsQuestionsConstraint && meetsDaysConstraint) || reachedMaxQuestions) {
       session.status = 'COMPLETED';
@@ -309,7 +313,7 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
           targetDiff = 'Intermediate';
         }
       } else {
-        targetDiff = (session.interviewPlan?.targetDifficulty as any) || 'Intermediate';
+        targetDiff = session.interviewPlan?.targetDifficulty || 'Intermediate';
       }
 
       console.log(`[Difficulty] Adapting target difficulty for next topic to: "${targetDiff}" based on performance.`);

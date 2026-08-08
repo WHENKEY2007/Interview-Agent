@@ -129,7 +129,7 @@ Output ONLY the clean corrected question text.`;
 
   try {
     const result = await generateContent(repairPrompt, systemInstruction);
-    let cleaned = result
+    const cleaned = result
       .replace(/^["']|["']$/g, '')
       .replace(/^(Interviewer|AI|Question):\s*/i, '')
       .trim();

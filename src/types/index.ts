@@ -76,3 +76,57 @@ export interface NextStep {
   reason: string;
   items: string[];
 }
+
+export interface CandidateMember {
+  id: string;
+  name: string;
+  jobRole: string;
+  yearsExperience: number;
+  education: string;
+  status: string;
+}
+
+export interface CandidateMission {
+  day: number;
+  title: string;
+  passed?: boolean;
+  attempts?: number;
+  skipped?: boolean;
+}
+
+export interface CandidateSignals {
+  commitDays: number;
+  missionsCompleted: number;
+  missionsFirstTry: number;
+}
+
+export interface CandidateProfile {
+  cohort?: string;
+  name?: string; // fallback helper
+  member: CandidateMember;
+  missions: CandidateMission[];
+  signals: CandidateSignals;
+}
+
+export interface TopicPerformanceItem {
+  day: string;
+  topic: string;
+  score: number;
+  level: 'strong' | 'good' | 'needs-improvement';
+  strengths: string[];
+  gaps: string[];
+}
+
+export interface FinalFeedbackReport {
+  summary: string;
+  overallScore: number | null;
+  technicalScore: number | null;
+  depthScore: number | null;
+  communicationScore: number | null;
+  strengths: string[];
+  gaps: string[];
+  next: NextStep[];
+  topicPerformance: TopicPerformanceItem[];
+  questionReviews: QuestionReviewItem[];
+  recommendations: string[];
+}

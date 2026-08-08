@@ -66,7 +66,7 @@ export function MetricBreakdown() {
               <p className="text-[13.5px] font-medium text-fg">{m.label}</p>
               <p className="font-mono text-[13px] text-sub">{isNotAssessable ? 'N/A' : m.score}</p>
             </div>
-            <ProgressBar value={isNotAssessable ? 0 : m.score} tone={isNotAssessable ? 'neutral' as any : scoreTone(m.score)} delay={0.1 + i * 0.08} className="mt-2" label={m.label} />
+            <ProgressBar value={isNotAssessable ? 0 : m.score} tone={isNotAssessable ? 'neutral' : scoreTone(m.score)} delay={0.1 + i * 0.08} className="mt-2" label={m.label} />
             <p className="mt-1.5 text-2xs text-dim">{m.note}</p>
           </li>
         )}

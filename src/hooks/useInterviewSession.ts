@@ -59,7 +59,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
     initialized.current = true;
 
     const startOrRestoreSession = async () => {
-      let activeId = sessionId;
+      const activeId = sessionId;
       const candidateToUse = activeCandidate || {
         member: {
           id: 'CAND-001',
@@ -187,7 +187,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
 
           // Save completed session to history
           const candName = activeCandidate?.member?.name || activeCandidate?.name || 'Candidate';
-          const candRole = activeCandidate?.member?.jobRole || activeCandidate?.jobRole || 'Software Engineer';
+          const candRole = activeCandidate?.member?.jobRole || 'Software Engineer';
           const sessionItem = {
             id: sessionId || `session-${Date.now()}`,
             date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
@@ -196,7 +196,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
             topics: Array.from(new Set((data.evaluations || []).map((e: any) => e.topic))) as string[],
             questions: questionsCount,
             minutes: Math.max(1, Math.round(duration / 60)),
-            score: data.feedback?.overallScore || 80,
+            score: data.feedback?.overallScore ?? null,
             summary: data.feedback?.summary || 'Interview completed.',
             report: data.feedback,
             evaluations: data.evaluations || []
@@ -306,7 +306,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
 
         // Save completed session
         const candName = activeCandidate?.member?.name || activeCandidate?.name || 'Candidate';
-        const candRole = activeCandidate?.member?.jobRole || activeCandidate?.jobRole || 'Software Engineer';
+        const candRole = activeCandidate?.member?.jobRole || 'Software Engineer';
         const sessionItem = {
           id: sessionId || `session-${Date.now()}`,
           date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
@@ -315,7 +315,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
           topics: Array.from(new Set((data.evaluations || []).map((e: any) => e.topic))) as string[],
           questions: questionsCount,
           minutes: Math.max(1, Math.round(duration / 60)),
-          score: data.feedback?.overallScore || 75,
+          score: data.feedback?.overallScore ?? null,
           summary: data.feedback?.summary || 'Interview completed early.',
           report: data.feedback,
           evaluations: data.evaluations || []

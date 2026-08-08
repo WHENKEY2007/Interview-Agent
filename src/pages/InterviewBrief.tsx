@@ -76,7 +76,7 @@ export function InterviewBrief() {
   const navigate = useNavigate();
   const { activeCandidate, setSessionId } = useSession();
 
-  const candidate = activeCandidate || fallbackCandidate;
+  const candidate: any = activeCandidate || fallbackCandidate;
   const name = candidate.member ? candidate.member.name : candidate.name;
   const role = candidate.member ? candidate.member.jobRole : candidate.jobRole;
 
