@@ -16,7 +16,7 @@ import { useSession } from '../contexts/SessionContext';
 
 export function FeedbackReport() {
   const navigate = useNavigate();
-  const { durationSeconds, finalReport, activeCandidate, evaluations } = useSession();
+  const { durationSeconds, finalReport, activeCandidate, evaluations, setSessionId } = useSession();
   const minutes = Math.max(1, Math.round(durationSeconds / 60));
 
   const candidate: any = activeCandidate || fallbackCandidate;
@@ -132,7 +132,7 @@ export function FeedbackReport() {
             <Button variant="secondary" size="md" onClick={() => navigate('/')}>
               Back to Dashboard
             </Button>
-            <Button size="md" onClick={() => navigate('/brief')} icon={<RotateCcwIcon size={15} />}>
+            <Button size="md" onClick={() => { setSessionId(null); navigate('/brief'); }} icon={<RotateCcwIcon size={15} />}>
               Practice Again
             </Button>
           </div>

@@ -9,7 +9,7 @@ interface TransitionState {
   line: string;
 }
 
-export function useInterviewSession(onComplete: (result: { durationSeconds: number; followUps: number }) => void) {
+export function useInterviewSession(onComplete: (result: { durationSeconds: number; answered: number; followUps: number }) => void) {
   const { 
     sessionId, 
     setSessionId, 
@@ -106,6 +106,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
               setQuestionNumber(sessionData.questionsAsked || 1);
               setClarifyUsed(sessionData.clarifyUsed || false);
               setEvaluations(sessionData.evaluations || []);
+              setSeconds(sessionData.durationSeconds || 0);
               setEvaluating(false);
               return;
             }
@@ -203,7 +204,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
           };
           addCompletedSession(sessionItem);
 
-          onComplete({ durationSeconds: duration, followUps: followUpsNum });
+          onComplete({ durationSeconds: duration, answered: questionsCount, followUps: followUpsNum });
           return;
         }
 
@@ -322,7 +323,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
         };
         addCompletedSession(sessionItem);
 
-        onComplete({ durationSeconds: duration, followUps: followUpsNum });
+        onComplete({ durationSeconds: duration, answered: questionsCount, followUps: followUpsNum });
       }
     } catch (err) {
       console.error('Error ending session early:', err);
