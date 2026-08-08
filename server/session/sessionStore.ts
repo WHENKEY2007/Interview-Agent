@@ -1,4 +1,5 @@
 import { CandidateProfile } from '../data/dataLoader';
+import { InterviewPlan } from '../agent/interviewPlanner';
 
 export interface InterviewTurn {
   id: string;
@@ -27,6 +28,8 @@ export interface AnswerEvaluation {
 export interface SessionState {
   sessionId: string;
   candidate: CandidateProfile;
+  interviewPlan?: InterviewPlan;
+  planDayIndex: number;
   turns: InterviewTurn[];
   questionsAsked: number;
   questionsAnswered: number;
@@ -46,7 +49,7 @@ export interface SessionState {
     summary: string;
     strengths: string[];
     gaps: string[];
-    next: string[];
+    next: any[];
   };
 }
 
@@ -56,6 +59,7 @@ export function createSession(sessionId: string, candidate: CandidateProfile): S
   const newSession: SessionState = {
     sessionId,
     candidate,
+    planDayIndex: 0,
     turns: [],
     questionsAsked: 0,
     questionsAnswered: 0,

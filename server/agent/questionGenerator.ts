@@ -57,7 +57,8 @@ export function selectNextDay(session: SessionState): number {
  */
 export async function generatePrimaryQuestion(
   candidate: CandidateProfile,
-  day: CurriculumDay
+  day: CurriculumDay,
+  difficulty: 'Foundational' | 'Intermediate' | 'Advanced' = 'Intermediate'
 ): Promise<string> {
   const systemInstruction = `You are an expert AI Technical Interviewer conducting a realistic, conversational, and practical technical interview. 
 Your goal is to evaluate the candidate's understanding of a specific day's learning objectives from their AI Cohort curriculum.
@@ -74,13 +75,18 @@ Curriculum Context for Today's Topic:
 - Main Objectives: ${day.objectives.join(', ')}
 - Associated Tools: ${day.tools.join(', ')}
 
+Target Difficulty: ${difficulty}
+
 Your Question Requirements:
 1. Do NOT ask simple definitions (e.g. do not ask "What is a vector database?").
 2. Ask a concrete, scenario-based system design or debugging question. Frame it as a real-world problem they would face on the job (e.g. diagnosing performance degradation, choosing between index types, handling schema validation failures, etc.).
-3. Tailor the complexity to their experience: a Senior Engineer (${candidate.member.yearsExperience} years) should face architectural trade-offs, scalability, and fail-safe design. A junior/intern should focus on correct implementation details, basic debugging, and correct library usage.
+3. Tailor the complexity to the target difficulty (${difficulty}) and their experience:
+   - Foundational: Focus on correct implementation details, basic syntax, and correct library usage.
+   - Intermediate: Focus on design choices, simple trade-offs, and basic performance parameters.
+   - Advanced: Focus on deep architectural trade-offs, mathematical limits of algorithms, failure-modes under high throughput, and cost/scale optimization.
 4. Keep the question brief, direct, and conversational. Do not output multiple questions in one turn.`;
 
-  const prompt = `Generate the primary technical interview question for Day ${day.day} (${day.title}). 
+  const prompt = `Generate the primary technical interview question for Day ${day.day} (${day.title}) at ${difficulty} level. 
 Focus on objectives: ${day.objectives.slice(0, 3).join(', ')}.
 Use tools: ${day.tools.slice(0, 3).join(', ')}.`;
 

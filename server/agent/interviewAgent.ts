@@ -1,10 +1,11 @@
-import { getCandidateById, getCurriculumDay, CandidateProfile } from '../data/dataLoader';
+import { getCandidateById, getCurriculumDay, getCurriculum, CandidateProfile } from '../data/dataLoader';
 import { createSession, getSession, saveSession, SessionState, InterviewTurn, AnswerEvaluation } from '../session/sessionStore';
 import { selectNextDay, generatePrimaryQuestion } from './questionGenerator';
 import { evaluateAnswer } from './answerEvaluator';
 import { generateFollowUp } from './followUpGenerator';
 import { generateFinalFeedback } from './feedbackGenerator';
 import { generateContent } from '../llm/llmClient';
+import { generateInterviewPlan } from './interviewPlanner';
 
 /**
  * Starts a new interview session.
@@ -36,8 +37,14 @@ export async function startInterview(sessionId: string, candidateData: any): Pro
 
   const session = createSession(sessionId, candidate);
 
+  // Generate Candidate-Aware Interview Plan
+  const curriculum = getCurriculum();
+  const plan = generateInterviewPlan(candidate, curriculum);
+  session.interviewPlan = plan;
+  session.planDayIndex = 0;
+
   // Pick first day/topic
-  const firstDayNum = selectNextDay(session);
+  const firstDayNum = plan.selectedDays[0] || 12;
   const day = getCurriculumDay(firstDayNum);
 
   if (!day) {
@@ -45,7 +52,7 @@ export async function startInterview(sessionId: string, candidateData: any): Pro
   }
 
   // Generate question
-  const questionText = await generatePrimaryQuestion(candidate, day);
+  const questionText = await generatePrimaryQuestion(candidate, day, plan.targetDifficulty);
 
   // Update session state
   session.currentTopic = day.title;
@@ -53,6 +60,7 @@ export async function startInterview(sessionId: string, candidateData: any): Pro
   session.currentQuestionDay = day.day;
   session.curriculumDaysCovered.push(day.day);
   session.questionsAsked = 1;
+  session.currentQuestionDifficulty = plan.targetDifficulty;
 
   // Record turn
   const turn: InterviewTurn = {
@@ -61,7 +69,7 @@ export async function startInterview(sessionId: string, candidateData: any): Pro
     text: questionText,
     topic: day.title,
     day: `Day ${day.day}`,
-    difficulty: 'Intermediate',
+    difficulty: plan.targetDifficulty,
     isPrimary: true
   };
   session.turns.push(turn);
@@ -231,12 +239,26 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
         feedback: finalReport
       };
     } else {
-      // Move to next day/topic
-      const nextDayNum = selectNextDay(session);
+      // Move to next day/topic in the plan
+      session.planDayIndex += 1;
+      const plan = session.interviewPlan;
+      
+      let nextDayNum: number;
+      let targetDiff: 'Foundational' | 'Intermediate' | 'Advanced' = 'Intermediate';
+
+      if (plan && session.planDayIndex < plan.selectedDays.length) {
+        nextDayNum = plan.selectedDays[session.planDayIndex];
+        targetDiff = plan.targetDifficulty;
+      } else {
+        // Fallback to dynamic choice
+        nextDayNum = selectNextDay(session);
+        if (plan) targetDiff = plan.targetDifficulty;
+      }
+
       const nextDay = getCurriculumDay(nextDayNum)!;
 
       // Generate next primary question
-      const questionText = await generatePrimaryQuestion(session.candidate, nextDay);
+      const questionText = await generatePrimaryQuestion(session.candidate, nextDay, targetDiff);
 
       session.currentTopic = nextDay.title;
       session.currentQuestion = questionText;
@@ -245,6 +267,7 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
       session.questionsAsked += 1;
       session.isFollowUpStage = false;
       session.clarifyUsed = false;
+      session.currentQuestionDifficulty = targetDiff;
 
       // Record interviewer turn
       session.turns.push({
@@ -253,7 +276,7 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
         text: questionText,
         topic: nextDay.title,
         day: `Day ${nextDay.day}`,
-        difficulty: 'Intermediate',
+        difficulty: targetDiff,
         isPrimary: true
       });
 
