@@ -35,7 +35,7 @@ export function InterviewComplete() {
     { value: `${minutes}`, label: 'Minutes' }
   ];
 
-  const isReady = !!finalReport || ready;
+  const isReady = !!finalReport;
 
 
   return (
