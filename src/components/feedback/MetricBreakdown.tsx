@@ -1,0 +1,46 @@
+import React from 'react';
+import { Panel } from '../ui/Panel';
+import { ProgressBar } from '../ui/ProgressBar';
+import { useSession } from '../../contexts/SessionContext';
+import { metricScores as fallbackMetricScores } from '../../data/feedback';
+import { scoreTone } from '../../utils/interviewEngine';
+
+export function MetricBreakdown() {
+  const { evaluations } = useSession();
+  
+  let metricScores = fallbackMetricScores;
+
+  if (evaluations && evaluations.length > 0) {
+    // Average score of the individual evaluations
+    const baseScore = Math.round(evaluations.reduce((sum, e) => {
+      const sc = e.status === 'Strong' ? 91 : e.status === 'Good' ? 78 : 62;
+      return sum + sc;
+    }, 0) / evaluations.length);
+
+    metricScores = [
+      { label: 'Technical Understanding', score: baseScore, note: 'Accurate concepts, correct terminology' },
+      { label: 'Problem Solving', score: Math.min(100, Math.round(baseScore * 0.98)), note: 'Structured diagnosis, logical resolution' },
+      { label: 'Communication', score: Math.min(100, Math.round(baseScore * 1.05)), note: 'Clear narrative structure, easy to follow' },
+      { label: 'Depth of Explanation', score: Math.max(0, Math.round(baseScore * 0.90)), note: 'Explains trade-offs and implementation detail' },
+      { label: 'Practical Application', score: Math.min(100, Math.round(baseScore * 0.95)), note: 'Connects concepts back to concrete tools' }
+    ];
+  }
+
+  return (
+    <Panel className="p-5">
+      <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-sub">Performance breakdown</h3>
+
+      <ul className="mt-5 space-y-4">
+        {metricScores.map((m, i) =>
+        <li key={m.label}>
+            <div className="flex items-baseline justify-between gap-4">
+              <p className="text-[13.5px] font-medium text-fg">{m.label}</p>
+              <p className="font-mono text-[13px] text-sub">{m.score}</p>
+            </div>
+            <ProgressBar value={m.score} tone={scoreTone(m.score)} delay={0.1 + i * 0.08} className="mt-2" label={m.label} />
+            <p className="mt-1.5 text-2xs text-dim">{m.note}</p>
+          </li>
+        )}
+      </ul>
+    </Panel>);
+}
