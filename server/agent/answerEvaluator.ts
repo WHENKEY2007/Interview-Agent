@@ -30,6 +30,12 @@ Format your output exactly as follows:
   "betterAnswerStructure": ["3 to 5 steps explaining how a stronger response should be structured physically or logically"]
 }
 
+EVALUATION SUBSTANCE RULES (CRITICAL):
+1. FOCUS ON SUBSTANCE, NOT LENGTH: Do NOT associate longer answers with high quality, nor shorter answers with low quality.
+2. CONCISE & CORRECT IS STRONG: If a candidate provides a short, direct response that correctly identifies the core mechanism, tool, or design choice, classify it as "strong".
+3. VERBOSE FLUFF IS PARTIAL: If a candidate writes a long, generic paragraph but fails to answer the specific technical question or name concrete parameters, classify it as "partial".
+4. MISCONCEPTIONS: Highlight any technical incorrectness in "misconceptions".
+
 Guidelines for quality classification:
 - "unknown": if they state they don't know, never learned it, or want to skip (e.g. "I don't know", "Not sure", "skip").
 - "irrelevant": if the answer is completely off-topic or fails to answer the question posed.

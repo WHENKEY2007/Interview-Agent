@@ -12,7 +12,6 @@ import { determineNextAction } from './interviewDecisionEngine';
  * Starts a new interview session.
  */
 export async function startInterview(sessionId: string, candidateData: any): Promise<string> {
-  // Try to find full candidate profile from candidates.json
   const candidateId = candidateData.member?.id || candidateData.id;
   let candidate: CandidateProfile | undefined;
   
@@ -20,7 +19,6 @@ export async function startInterview(sessionId: string, candidateData: any): Pro
     candidate = getCandidateById(candidateId);
   }
 
-  // Fallback to parsed candidate structure if not found in JSON database
   if (!candidate) {
     candidate = {
       member: {
@@ -52,12 +50,12 @@ export async function startInterview(sessionId: string, candidateData: any): Pro
     throw new Error(`Curriculum day ${firstDayNum} not found`);
   }
 
-  // Generate question
-  const questionText = await generatePrimaryQuestion(candidate, day, plan.targetDifficulty);
+  // Generate primary question
+  const questionObj = await generatePrimaryQuestion(candidate, day, plan.targetDifficulty, []);
 
   // Update session state
   session.currentTopic = day.title;
-  session.currentQuestion = questionText;
+  session.currentQuestion = questionObj.question;
   session.currentQuestionDay = day.day;
   session.curriculumDaysCovered.push(day.day);
   session.questionsAsked = 1;
@@ -71,17 +69,18 @@ export async function startInterview(sessionId: string, candidateData: any): Pro
   const turn: InterviewTurn = {
     id: `turn-${Date.now()}-q`,
     role: 'interviewer',
-    text: questionText,
+    text: questionObj.question,
     topic: day.title,
     day: `Day ${day.day}`,
     difficulty: plan.targetDifficulty,
-    isPrimary: true
+    isPrimary: true,
+    intent: questionObj.intent
   };
   session.turns.push(turn);
 
   saveSession(sessionId, session);
 
-  return questionText;
+  return questionObj.question;
 }
 
 /**
@@ -157,7 +156,8 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
       text: clarificationText,
       badge: 'Clarifying the question',
       topic: session.currentTopic,
-      day: `Day ${session.currentQuestionDay}`
+      day: `Day ${session.currentQuestionDay}`,
+      intent: 'clarification'
     });
 
     saveSession(sessionId, session);
@@ -204,15 +204,40 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
   const decision = determineNextAction(session, evalResult);
   session.lastDecision = decision.strategy;
 
-  if (decision.shouldFollowUp) {
-    // 1. Generate follow-up response
+  // Logging diagnostics
+  const lastTurn = session.turns[session.turns.length - 2];
+  console.log('\n[Interview]');
+  console.log(`Session: ${session.sessionId}`);
+  console.log(`Day: ${session.currentQuestionDay}`);
+  console.log(`Topic: ${session.currentTopic}`);
+  console.log('\n[Question]');
+  console.log(`Intent: ${lastTurn?.intent || 'conceptual'}`);
+  console.log(`Length: ${session.currentQuestion.split(/\s+/).length} words`);
+  console.log('\n[Evaluation]');
+  console.log(`Correctness: ${evalResult.quality}`);
+  console.log(`Depth: ${evalResult.quality === 'strong' ? 'high' : evalResult.quality === 'partial' ? 'moderate' : 'low'}`);
+  console.log(`Missing: ${evalResult.gaps.join(', ') || 'None'}`);
+  console.log('\n[Decision]');
+  console.log(`Strategy: ${decision.strategy}`);
+  console.log('\n[Progress]');
+  console.log(`Questions: ${session.questionsAsked}/8+ (max 10)`);
+  console.log(`Days covered: ${session.curriculumDaysCovered.length}/4+\n`);
+
+  if (decision.shouldFollowUp && session.questionsAsked < 10) {
+    // 1. Gather all previously asked questions to prevent repetitions in follow-ups
+    const prevQuestions = session.turns
+      .filter(t => t.role === 'interviewer')
+      .map(t => t.text);
+
+    // 2. Generate follow-up response
     const followUp = await generateFollowUp(
       session.candidate,
       day,
       session.currentQuestion,
       message,
       evalResult,
-      decision.strategy
+      decision.strategy,
+      prevQuestions
     );
 
     // Update state parameters
@@ -231,7 +256,8 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
       badge: followUp.badge,
       topic: session.currentTopic,
       day: `Day ${session.currentQuestionDay}`,
-      difficulty: session.currentQuestionDifficulty
+      difficulty: session.currentQuestionDifficulty,
+      intent: decision.strategy === 'challenge' ? 'challenge' : 'debugging'
     });
 
     saveSession(sessionId, session);
@@ -245,8 +271,9 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
     const coveredDaysCount = session.curriculumDaysCovered.length;
     const meetsQuestionsConstraint = session.questionsAsked >= 8;
     const meetsDaysConstraint = coveredDaysCount >= 4;
+    const reachedMaxQuestions = session.questionsAsked >= 10;
 
-    if (meetsQuestionsConstraint && meetsDaysConstraint) {
+    if ((meetsQuestionsConstraint && meetsDaysConstraint) || reachedMaxQuestions) {
       session.status = 'COMPLETED';
       
       const finalReport = await generateFinalFeedback(session);
@@ -260,30 +287,53 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
         feedback: finalReport
       };
     } else {
+      // Dynamic Difficulty Adaptation: Evaluate average score of completed topic
+      const topicEvals = session.evaluations.filter(e => e.topic === session.currentTopic);
+      const lastEval = topicEvals[topicEvals.length - 1];
+      
+      let targetDiff: 'Foundational' | 'Intermediate' | 'Advanced' = 'Intermediate';
+      if (lastEval) {
+        if (lastEval.status === 'Strong') {
+          targetDiff = 'Advanced';
+        } else if (lastEval.status === 'Needs Improvement') {
+          targetDiff = 'Foundational';
+        } else {
+          targetDiff = 'Intermediate';
+        }
+      } else {
+        targetDiff = (session.interviewPlan?.targetDifficulty as any) || 'Intermediate';
+      }
+
+      console.log(`[Difficulty] Adapting target difficulty for next topic to: "${targetDiff}" based on performance.`);
+
       // Transition to the next planned topic/day
       session.planDayIndex += 1;
       session.currentTopicDepth = 0;
       const plan = session.interviewPlan;
 
       let nextDayNum: number;
-      let targetDiff: 'Foundational' | 'Intermediate' | 'Advanced' = 'Intermediate';
-
       if (plan && session.planDayIndex < plan.selectedDays.length) {
         nextDayNum = plan.selectedDays[session.planDayIndex];
-        targetDiff = plan.targetDifficulty;
       } else {
-        // Fallback to dynamic choice
         nextDayNum = selectNextDay(session);
-        if (plan) targetDiff = plan.targetDifficulty;
       }
 
       const nextDay = getCurriculumDay(nextDayNum)!;
 
+      // Compile previous questions to prevent semantic duplicates
+      const prevQuestions = session.turns
+        .filter(t => t.role === 'interviewer')
+        .map(t => t.text);
+
       // Generate next primary question
-      const questionText = await generatePrimaryQuestion(session.candidate, nextDay, targetDiff);
+      const questionObj = await generatePrimaryQuestion(session.candidate, nextDay, targetDiff, prevQuestions);
+
+      // Prepend a very brief, natural transition context
+      const transitionText = `Moving to ${nextDay.title}. `;
+      const finalQuestion = transitionText + questionObj.question;
 
       session.currentTopic = nextDay.title;
-      session.currentQuestion = questionText;
+      session.currentQuestion = finalQuestion;
       session.currentQuestionDay = nextDay.day;
       session.curriculumDaysCovered.push(nextDay.day);
       session.questionsAsked += 1;
@@ -296,17 +346,18 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
       session.turns.push({
         id: `turn-${Date.now()}-q`,
         role: 'interviewer',
-        text: questionText,
+        text: finalQuestion,
         topic: nextDay.title,
         day: `Day ${nextDay.day}`,
         difficulty: targetDiff,
-        isPrimary: true
+        isPrimary: true,
+        intent: questionObj.intent
       });
 
       saveSession(sessionId, session);
 
       return {
-        reply: questionText,
+        reply: finalQuestion,
         done: false
       };
     }

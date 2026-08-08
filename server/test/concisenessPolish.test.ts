@@ -1,80 +1,76 @@
 import assert from 'assert';
-import { loadData, getCandidates, getCurriculumDay } from '../data/dataLoader';
-import { generatePrimaryQuestion } from '../agent/questionGenerator';
-import { generateFollowUp } from '../agent/followUpGenerator';
-import { EvaluationResult } from '../agent/answerEvaluator';
-
-loadData();
-
-const candidate = getCandidates()[0];
-const day12 = getCurriculumDay(12)!;
-const day18 = getCurriculumDay(18)!;
+import { validateQuestion, isDuplicateQuestion, calculateSimilarity } from '../agent/validation';
 
 console.log('================================================');
-console.log('RUNNING QUESTION CONCISENESS TEST SUITE');
+console.log('RUNNING QUESTION CONCISENESS & VALIDATION TESTS');
 console.log('================================================\n');
 
-// Test helper to measure word count and sentence count
-function analyzeText(text: string) {
-  const words = text.trim().split(/\s+/).length;
-  const sentenceMatches = text.match(/[^.!?]+[.!?]+/g);
-  const sentenceCount = sentenceMatches ? sentenceMatches.length : 1;
-  const questionCount = (text.match(/\?/g) || []).length;
-  return { words, sentenceCount, questionCount };
-}
+// 1. Length & Sentence Counts
+const validPrimary = "Suppose your RAG application retrieves semantically relevant but incorrect chunks. How would you debug this pipeline?";
+const invalidPrimaryTooLong = "Suppose your RAG application retrieves semantically relevant but incorrect chunks. How would you debug this pipeline? Please explain your design, trace the retrieval steps, identify memory boundaries, and list the concrete parameters you would tune to fix it.";
+const invalidPrimaryTwoQuestions = "How does vector index latency scale? What index parameters would you adjust?";
+const validFollowUp = "How does IVF index cell size affect recall?";
+const invalidFollowUpTooLong = "Could you please elaborate on how the cell size of the IVF index affects search recall when scaling to ten million vectors under a fifty millisecond latency budget?";
 
-async function testConcisenessRules() {
-  console.log('1. Primary Question Conciseness Rules:');
-  const sampleText = "Suppose your RAG application retrieves documents that appear semantically relevant, but generated answers are inaccurate. How would you debug the system?";
-  const metrics = analyzeText(sampleText);
-  console.log(`- Sample Primary: "${sampleText}"`);
-  console.log(`  Words: ${metrics.words}, Sentences: ${metrics.sentenceCount}, Questions: ${metrics.questionCount}`);
-  assert.ok(metrics.words <= 30, 'Primary question word count should be <= 30 words');
-  assert.ok(metrics.questionCount === 1, 'Should contain exactly one question mark');
-  assert.ok(metrics.sentenceCount <= 2, 'Should be 1-2 sentences max');
+// 2. Preambles
+const invalidPreamble = "Hello! Let's transition to vector database scaling. How would you choose between HNSW and IVF?";
 
-  console.log('\n2. Follow-Up Strategy Behaviors:');
+// 3. Duplication Overlaps
+const questionA = "How do IVF indexes compare to HNSW under RAM constraints?";
+const questionB = "Under RAM constraints, how do IVF indexes compare with HNSW?";
+const questionDifferent = "What similarity metric is best for cosine distance calculations?";
 
-  // Scenario A: Partial Answer -> Probe
-  const probeEval: EvaluationResult = {
-    score: 70,
-    quality: 'partial',
-    evaluation: 'Named vector databases but missed distance metrics.',
-    strengths: ['Vector database concept'],
-    gaps: ['Distance metrics', 'Similarity calculation'],
-    misconceptions: [],
-    betterAnswerStructure: []
-  };
-  const probeSample = "What determines whether two embeddings are considered similar?";
-  const probeMetrics = analyzeText(probeSample);
-  console.log(`- Partial Answer Probe: "${probeSample}"`);
-  console.log(`  Words: ${probeMetrics.words}, Questions: ${probeMetrics.questionCount}`);
-  assert.ok(probeMetrics.words <= 25, 'Follow-up probe word count should be <= 25 words');
+function runTests() {
+  // Test 1: Valid primary question
+  const val1 = validateQuestion(validPrimary, 'primary', []);
+  console.log(`- Valid primary question accepted: ${val1.valid}`);
+  assert.ok(val1.valid, 'Valid primary question should pass');
 
-  // Scenario B: Strong Answer -> Challenge / Going deeper
-  const strongSample = "Good. What trade-offs would you consider with hybrid retrieval?";
-  const strongMetrics = analyzeText(strongSample);
-  console.log(`- Strong Answer Challenge: "${strongSample}"`);
-  console.log(`  Words: ${strongMetrics.words}, Questions: ${strongMetrics.questionCount}`);
-  assert.ok(strongMetrics.words <= 25, 'Follow-up challenge word count should be <= 25 words');
+  // Test 2: Too long primary question (fails word limit)
+  const val2 = validateQuestion(invalidPrimaryTooLong, 'primary', []);
+  console.log(`- Too long primary question rejected: ${!val2.valid} (Reason: ${val2.reason})`);
+  assert.ok(!val2.valid, 'Too long primary question should fail');
+  assert.match(val2.reason || '', /word count/i, 'Reason should mention word count');
 
-  // Scenario C: Incorrect Answer -> Misconception challenge
-  const incorrectSample = "What happens if the retrieved context is irrelevant to the query?";
-  const incMetrics = analyzeText(incorrectSample);
-  console.log(`- Incorrect Answer Challenge: "${incorrectSample}"`);
-  console.log(`  Words: ${incMetrics.words}, Questions: ${incMetrics.questionCount}`);
-  assert.ok(incMetrics.words <= 25, 'Incorrect follow-up challenge word count should be <= 25 words');
+  // Test 3: Multiple question marks rejected
+  const val3 = validateQuestion(invalidPrimaryTwoQuestions, 'primary', []);
+  console.log(`- Multiple questions rejected: ${!val3.valid} (Reason: ${val3.reason})`);
+  assert.ok(!val3.valid, 'Multi-part questions should fail');
+  assert.match(val3.reason || '', /question mark/i, 'Reason should mention question mark count');
 
-  // Scenario D: Irrelevant Answer -> Redirect
-  const redirectSample = "Let's stay with retrieval. What role does it play in RAG?";
-  const redMetrics = analyzeText(redirectSample);
-  console.log(`- Irrelevant Answer Redirect: "${redirectSample}"`);
-  console.log(`  Words: ${redMetrics.words}, Questions: ${redMetrics.questionCount}`);
-  assert.ok(redMetrics.words <= 25, 'Redirect word count should be <= 25 words');
+  // Test 4: Valid follow-up question
+  const val4 = validateQuestion(validFollowUp, 'followup', []);
+  console.log(`- Valid follow-up question accepted: ${val4.valid}`);
+  assert.ok(val4.valid, 'Valid follow-up should pass');
+
+  // Test 5: Too long follow-up question
+  const val5 = validateQuestion(invalidFollowUpTooLong, 'followup', []);
+  console.log(`- Too long follow-up rejected: ${!val5.valid} (Reason: ${val5.reason})`);
+  assert.ok(!val5.valid, 'Too long follow-up should fail');
+  assert.match(val5.reason || '', /word count/i, 'Reason should mention word count');
+
+  // Test 6: Greeting preamble rejected
+  const val6 = validateQuestion(invalidPreamble, 'primary', []);
+  console.log(`- Greeting preamble rejected: ${!val6.valid} (Reason: ${val6.reason})`);
+  assert.ok(!val6.valid, 'Preamble question should fail');
+  assert.match(val6.reason || '', /preamble/i, 'Reason should mention preamble');
+
+  // Test 7: Duplicate detection
+  const sim = calculateSimilarity(questionA, questionB);
+  console.log(`- Semantic similarity score: ${sim.toFixed(2)}`);
+  assert.ok(sim > 0.6, 'Word overlap score should be high for rephrased duplicates');
+  
+  const isDup = isDuplicateQuestion(questionA, [questionB]);
+  console.log(`- Duplicate check triggered: ${isDup}`);
+  assert.ok(isDup, 'Should detect duplicate question');
+
+  const isNotDup = isDuplicateQuestion(questionA, [questionDifferent]);
+  console.log(`- Different question duplicate check: ${isNotDup}`);
+  assert.ok(!isNotDup, 'Should not detect duplicate for different topics');
 
   console.log('\n================================================');
-  console.log('ALL QUESTION CONCISENESS TESTS PASSED!');
+  console.log('ALL QUESTION CONCISENESS & VALIDATION TESTS PASSED!');
   console.log('================================================');
 }
 
-testConcisenessRules();
+runTests();
