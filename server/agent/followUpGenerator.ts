@@ -11,38 +11,43 @@ export async function generateFollowUp(
   evaluation: EvaluationResult,
   strategy: FollowUpStrategy
 ): Promise<{ text: string; badge: string; difficultyShift?: 'up' | 'down' | 'same' }> {
-  const systemInstruction = `You are a professional, collaborative technical interviewer conducting a live dialogue.
-You are generating a single follow-up question to probe the candidate's understanding further, based on their previous answer, your evaluation, and the decided strategy.
+  const systemInstruction = `You are a professional, collaborative technical interviewer conducting a fast-paced conversational dialogue.
+You are generating a short, sharp follow-up response based on the candidate's previous answer and the decided strategy.
 
-Candidate Info:
-- Name: ${candidate.member.name}
-- Job: ${candidate.member.jobRole}
-- Experience: ${candidate.member.yearsExperience} years
+CONTEXT:
+- Candidate: ${candidate.member.name} (${candidate.member.jobRole}, ${candidate.member.yearsExperience} yrs exp)
+- Topic: Day ${day.day} - ${day.title}
+- Previous Question: "${question}"
+- Candidate Answer: "${answer}"
+- Evaluation Quality: ${evaluation.quality}
+- Strategy: ${strategy}
+- Gaps Identified: ${evaluation.gaps.join(', ') || 'None'}
+- Misconceptions: ${evaluation.misconceptions.join(', ') || 'None'}
 
-Day Context: Day ${day.day} - ${day.title} (Objectives: ${day.objectives.join(', ')})
-Original Question: "${question}"
-Candidate Answer: "${answer}"
+CONCISENESS & STYLE RULES (CRITICAL):
+1. EXTREMELY CONCISE: 1 to 2 sentences maximum (strictly between 10 and 25 words).
+2. NO CHATTY INTROS OR LECTURES: Do not give long praise, essays, or unnecessary explanations.
+3. ASK EXACTLY ONE QUESTION at the end.
+4. STRATEGY SPECIFIC BEHAVIOR:
+   - "challenge" (and Quality is "strong"): Brief 1-3 word acknowledgment, then ask a deeper trade-off or scale question.
+     Example: "Good. What trade-offs would you consider with hybrid retrieval?"
+   - "challenge" (and Quality is "incorrect"): Briefly challenge their misconception with a concrete counter-scenario.
+     Example: "What happens if the retrieved context is irrelevant to the query?"
+   - "probe" (and Quality is "partial"): Focus directly on the specific concept or detail they missed.
+     Example: "What determines whether two embeddings are considered similar?"
+   - "redirect" (and Quality is "irrelevant"): Concise, polite redirect back to the core topic.
+     Example: "Let's stay with retrieval. What role does it play in RAG?"
+   - "clarify": Ask them to clarify one specific ambiguity.
+     Example: "How would you handle failure recovery in that step?"`;
 
-Your Evaluation:
-- Quality classification: ${evaluation.quality}
-- Gaps identified: ${evaluation.gaps.join(', ')}
-- Strengths identified: ${evaluation.strengths.join(', ')}
-- Misconceptions: ${evaluation.misconceptions.join(', ')}
+  const prompt = `Generate the concise follow-up response (1-2 sentences, max 25 words) for strategy "${strategy}".`;
 
-Decided Follow-up Strategy: ${strategy}
+  const rawText = await generateContent(prompt, systemInstruction);
 
-Guidelines for the Follow-Up Response based on strategy:
-1. Speak directly to the candidate in a supportive but rigorous tone. Acknowledge what they got right briefly, then pose the next question.
-2. If strategy is "challenge" (and quality is "strong"): Challenge them! Push the difficulty up. Ask about scale, latency, edge cases, cost, or alternative architectural choices.
-3. If strategy is "challenge" (and quality is "incorrect"): Misconception detected! Challenge their reasoning with a targeted follow-up scenario that tests their incorrect assumption without giving the correct answer away.
-4. If strategy is "probe": Probe their gaps! Ask them directly about a specific detail they missed or left vague. Do NOT ask generic "tell me more" questions; ask about chunks, metadata, indexes, etc.
-5. If strategy is "redirect": Off-topic or irrelevant answer! Politely acknowledge and redirect them back to the active curriculum objectives of today's topic. Give them an opportunity to answer.
-6. If strategy is "clarify": The answer was ambiguous. Ask them to explain a specific part of their design or logic.
-7. Keep your response concise (2 to 3 sentences maximum). Output ONLY the conversational interviewer response. No extra formatting.`;
-
-  const prompt = `Generate the follow-up response matching the strategy "${strategy}".`;
-
-  const text = await generateContent(prompt, systemInstruction);
+  let cleaned = rawText
+    .replace(/^["']|["']$/g, '')
+    .replace(/^(Interviewer|Follow-up|AI):\s*/i, '')
+    .trim();
 
   let badge = 'Follow-up';
   let difficultyShift: 'up' | 'down' | 'same' = 'same';
@@ -67,7 +72,7 @@ Guidelines for the Follow-Up Response based on strategy:
   }
 
   return {
-    text: text.trim(),
+    text: cleaned,
     badge,
     difficultyShift
   };

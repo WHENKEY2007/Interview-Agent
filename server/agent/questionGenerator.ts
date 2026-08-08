@@ -1,5 +1,5 @@
 import { generateContent } from '../llm/llmClient';
-import { CandidateProfile, CurriculumDay, getCurriculum, getCurriculumDay } from '../data/dataLoader';
+import { CandidateProfile, CurriculumDay, getCurriculum } from '../data/dataLoader';
 import { SessionState } from '../session/sessionStore';
 
 /**
@@ -60,36 +60,38 @@ export async function generatePrimaryQuestion(
   day: CurriculumDay,
   difficulty: 'Foundational' | 'Intermediate' | 'Advanced' = 'Intermediate'
 ): Promise<string> {
-  const systemInstruction = `You are an expert AI Technical Interviewer conducting a realistic, conversational, and practical technical interview. 
-Your goal is to evaluate the candidate's understanding of a specific day's learning objectives from their AI Cohort curriculum.
+  const systemInstruction = `You are an expert AI Technical Interviewer conducting a realistic, conversational, and focused interview.
+Your goal is to evaluate the candidate's understanding of Day ${day.day} (${day.title}).
 
 Candidate Info:
 - Name: ${candidate.member.name}
-- Job Role: ${candidate.member.jobRole}
-- Experience: ${candidate.member.yearsExperience} years
-- Education: ${candidate.member.education}
+- Job Role: ${candidate.member.jobRole} (${candidate.member.yearsExperience} yrs exp)
 
-Curriculum Context for Today's Topic:
-- Day: ${day.day}
-- Topic Title: ${day.title}
-- Main Objectives: ${day.objectives.join(', ')}
+Curriculum Context:
+- Day: ${day.day} - ${day.title}
+- Main Objectives: ${day.objectives.slice(0, 2).join('; ')}
 - Associated Tools: ${day.tools.join(', ')}
 
 Target Difficulty: ${difficulty}
 
-Your Question Requirements:
-1. Do NOT ask simple definitions (e.g. do not ask "What is a vector database?").
-2. Ask a concrete, scenario-based system design or debugging question. Frame it as a real-world problem they would face on the job (e.g. diagnosing performance degradation, choosing between index types, handling schema validation failures, etc.).
-3. Tailor the complexity to the target difficulty (${difficulty}) and their experience:
-   - Foundational: Focus on correct implementation details, basic syntax, and correct library usage.
-   - Intermediate: Focus on design choices, simple trade-offs, and basic performance parameters.
-   - Advanced: Focus on deep architectural trade-offs, mathematical limits of algorithms, failure-modes under high throughput, and cost/scale optimization.
-4. Keep the question brief, direct, and conversational. Do not output multiple questions in one turn.`;
+CONCISENESS & STYLE RULES (CRITICAL):
+1. ASK EXACTLY ONE CLEAR QUESTION. Never ask multi-part questions or stack multiple question marks.
+2. KEEP IT CONCISE: 1 to 2 sentences maximum (strictly around 10 to 30 words).
+3. NO PREAMBLE / INTROS: Jump directly to the question. Do NOT say "Hello", "Welcome", "Great to meet you", "Today we will discuss", or "In this turn...".
+4. NO BULLET LISTS OR EXPLANATORY ESSAYS: Do not explain the background or list sub-topics before asking.
+5. PRACTICAL SYSTEM DESIGN / DEBUGGING SCENARIO: Frame as a real-world engineering choice or problem matching ${difficulty} level:
+   - Foundational: Basic mechanics, correct API/library usage, or baseline debugging.
+   - Intermediate: Architecture choices, system trade-offs, or error handling.
+   - Advanced: Scale/latency bounds, algorithmic limits, or failure modes under high load.`;
 
-  const prompt = `Generate the primary technical interview question for Day ${day.day} (${day.title}) at ${difficulty} level. 
-Focus on objectives: ${day.objectives.slice(0, 3).join(', ')}.
-Use tools: ${day.tools.slice(0, 3).join(', ')}.`;
+  const prompt = `Ask one concise ${difficulty}-level technical interview question (1-2 sentences, 10-30 words) for Day ${day.day}: ${day.title}.`;
 
-  const question = await generateContent(prompt, systemInstruction);
-  return question.trim();
+  const rawQuestion = await generateContent(prompt, systemInstruction);
+  
+  let cleaned = rawQuestion
+    .replace(/^["']|["']$/g, '')
+    .replace(/^(Interviewer|Question|AI):\s*/i, '')
+    .trim();
+
+  return cleaned;
 }
