@@ -11,7 +11,6 @@ import { TopicPerformance } from '../components/feedback/TopicPerformance';
 import { FeedbackList } from '../components/feedback/FeedbackList';
 import { QuestionReviewCard } from '../components/feedback/QuestionReviewCard';
 import { NextStepCard } from '../components/feedback/NextStepCard';
-import { growthAreas as fallbackGrowth, nextSteps as fallbackNext, questionReviews as fallbackReviews, strengths as fallbackStrengths } from '../data/feedback';
 import { candidate as fallbackCandidate } from '../data/cohort';
 import { useSession } from '../contexts/SessionContext';
 
@@ -22,10 +21,13 @@ export function FeedbackReport() {
 
   const candidate = activeCandidate || fallbackCandidate;
   const name = candidate.member?.name || candidate.name;
-  const strengthsList = finalReport && finalReport.strengths ? finalReport.strengths : fallbackStrengths;
-  const growthList = finalReport && finalReport.gaps ? finalReport.gaps : fallbackGrowth;
-  const nextStepsList = finalReport && finalReport.next ? finalReport.next : fallbackNext;
-  const reviewsList = evaluations && evaluations.length > 0 ? evaluations : fallbackReviews;
+  
+  const isNotAssessable = !finalReport || finalReport.overallScore === null || finalReport.overallScore === undefined || evaluations.length === 0;
+
+  const strengthsList = isNotAssessable ? [] : (finalReport?.strengths || []);
+  const growthList = isNotAssessable ? [] : (finalReport?.gaps || []);
+  const nextStepsList = isNotAssessable ? [] : (finalReport?.next || []);
+  const reviewsList = evaluations || [];
 
   return (
     <div className="min-h-full w-full bg-base">
@@ -81,11 +83,18 @@ export function FeedbackReport() {
             </div>
           </div>
 
-          <ul className="mt-5 space-y-3">
-            {reviewsList.map((item, i) =>
-            <QuestionReviewCard key={item.id} item={item} index={i} />
-            )}
-          </ul>
+          {reviewsList.length === 0 ? (
+            <div className="rounded-xl border border-line bg-panel p-8 text-center mt-5">
+              <p className="text-[14.5px] font-medium text-fg">No answered questions to review</p>
+              <p className="mt-1 text-[13px] text-dim">Complete an interview to receive question-level feedback.</p>
+            </div>
+          ) : (
+            <ul className="mt-5 space-y-3">
+              {reviewsList.map((item, i) => (
+                <QuestionReviewCard key={item.id} item={item} index={i} />
+              ))}
+            </ul>
+          )}
         </section>
 
         <section className="mt-12" aria-labelledby="next-heading">
@@ -96,11 +105,17 @@ export function FeedbackReport() {
             Mapped directly back to the 31-day cohort curriculum.
           </p>
 
-          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {nextStepsList.map((step: any) =>
-            <NextStepCard key={step.day} step={step} />
-            )}
-          </div>
+          {nextStepsList.length === 0 ? (
+            <div className="mt-5 rounded-xl border border-line bg-panel p-8 text-center">
+              <p className="text-[13.5px] text-dim">No recommended next steps available.</p>
+            </div>
+          ) : (
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {nextStepsList.map((step: any) => (
+                <NextStepCard key={step.day} step={step} />
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="mt-12 flex flex-col items-center gap-3 rounded-2xl border border-line bg-panel px-6 py-8 sm:flex-row sm:justify-between">

@@ -104,14 +104,6 @@ export async function handleCandidateMessage(
     };
   }
 
-  // Record candidate turn
-  const candidateTurn: InterviewTurn = {
-    id: `turn-${Date.now()}-a`,
-    role: 'candidate',
-    text: message
-  };
-  session.turns.push(candidateTurn);
-
   // Check if message is an end early request
   if (message === '[END_EARLY]') {
     session.status = 'COMPLETED';
@@ -124,6 +116,22 @@ export async function handleCandidateMessage(
       feedback: finalReport
     };
   }
+
+  // Check for empty or whitespace-only messages independently on the backend
+  if (!message || message.trim().length === 0) {
+    return {
+      reply: "Please provide a response before submitting.",
+      done: false
+    };
+  }
+
+  // Record candidate turn
+  const candidateTurn: InterviewTurn = {
+    id: `turn-${Date.now()}-a`,
+    role: 'candidate',
+    text: message
+  };
+  session.turns.push(candidateTurn);
 
   // Check if message is a clarification request
   const isClarifyRequest = 

@@ -64,10 +64,10 @@ export interface SessionState {
       reason: string;
       items: string[];
     } | string>;
-    overallScore?: number;
-    technicalScore?: number;
-    depthScore?: number;
-    communicationScore?: number;
+    overallScore?: number | null;
+    technicalScore?: number | null;
+    depthScore?: number | null;
+    communicationScore?: number | null;
     topicPerformance?: Array<{
       day: string;
       topic: string;

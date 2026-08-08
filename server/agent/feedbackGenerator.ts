@@ -20,10 +20,10 @@ export interface TopicPerformanceItem {
 
 export interface FinalFeedback {
   summary: string;
-  overallScore: number;
-  technicalScore: number;
-  depthScore: number;
-  communicationScore: number;
+  overallScore: number | null;
+  technicalScore: number | null;
+  depthScore: number | null;
+  communicationScore: number | null;
   strengths: string[];
   gaps: string[];
   next: NextStepItem[];
@@ -36,6 +36,26 @@ function clampScore(val: any, fallback: number): number {
   const num = typeof val === 'number' ? val : parseInt(val, 10);
   if (isNaN(num)) return fallback;
   return Math.max(0, Math.min(100, Math.round(num)));
+}
+
+/**
+ * Generates an unassessable feedback report for zero-answer sessions.
+ */
+export function generateNotAssessableFeedback(candidate: CandidateProfile): FinalFeedback {
+  const name = candidate.member?.name || candidate.name || 'Candidate';
+  return {
+    summary: `The interview ended before any technical responses were provided by ${name}, so there was not enough evidence to assess technical performance.`,
+    overallScore: null,
+    technicalScore: null,
+    depthScore: null,
+    communicationScore: null,
+    strengths: [],
+    gaps: [],
+    next: [],
+    topicPerformance: [],
+    questionReviews: [],
+    recommendations: ["Ensure you provide technical answers to the interviewer's questions in order to receive an assessment."]
+  };
 }
 
 /**
@@ -56,6 +76,12 @@ export async function generateFinalFeedback(
   } else {
     candidate = candidateOrSession as CandidateProfile;
     evaluations = evaluationsArg || [];
+  }
+
+  // Zero-Answer Guard: exit early with unassessable feedback
+  if (evaluations.length === 0) {
+    console.log('[Feedback] No evaluations found. Generating Not Assessable report.');
+    return generateNotAssessableFeedback(candidate);
   }
 
   const curriculum = getCurriculum();
@@ -84,6 +110,11 @@ export async function generateFinalFeedback(
 You must analyze the candidate's responses against the curriculum standards and return your assessment strictly as a JSON object.
 
 Candidates are evaluated across technical correctness, reasoning depth, trade-off analysis, and communication quality.
+
+EVALUATION CONSTRAINTS (CRITICAL):
+1. You must evaluate only evidence contained in actual candidate responses present in the interview transcript.
+2. Never invent, infer, or assume a candidate answer.
+3. If a question has no candidate response, treat it as unanswered and do not evaluate the candidate's technical performance for that question.
 
 Format your output exactly as follows:
 {
@@ -202,20 +233,20 @@ Please generate the final structured feedback report JSON.
           topic: topicStr,
           score: tScore,
           level,
-          strengths: evals.flatMap(e => e.strengths),
-          gaps: evals.flatMap(e => e.improvements)
+          strengths: [...new Set(evals.flatMap(e => e.strengths))].slice(0, 2),
+          gaps: [...new Set(evals.flatMap(e => e.improvements))].slice(0, 2)
         };
       });
     }
 
-    // Format & validate next steps
+    // Format recommendations / next steps
     let next: NextStepItem[] = [];
     if (Array.isArray(parsed.next) && parsed.next.length > 0) {
-      next = parsed.next.map((ns: any) => ({
-        day: typeof ns.day === 'string' ? ns.day : 'Day 18',
-        topic: typeof ns.topic === 'string' ? ns.topic : 'Cohort Topic',
-        reason: typeof ns.reason === 'string' ? ns.reason : 'Recommended for further study.',
-        items: Array.isArray(ns.items) ? ns.items.filter((i: any) => typeof i === 'string') : ['Review core objectives']
+      next = parsed.next.map((n: any) => ({
+        day: n.day || 'Day 12',
+        topic: n.topic || 'General AI',
+        reason: n.reason || 'Curriculum objectives review.',
+        items: Array.isArray(n.items) ? n.items : []
       }));
     } else {
       next = generateFallbackNextSteps(evaluations, curriculum);
@@ -236,53 +267,38 @@ Please generate the final structured feedback report JSON.
       questionReviews: evaluations,
       recommendations
     };
-
   } catch (error) {
-    console.error('[Feedback] Error parsing LLM feedback output. Activating deterministic fallback generator.', error);
+    console.error('[Feedback] LLM call failed or parsed malformed JSON. Using fallback.', error);
     return generateFallbackFeedback(candidate, evaluations);
   }
 }
 
-/**
- * Deterministic fallback generator synthesizing grounded feedback when LLM parsing/API fails.
- */
-
 function generateFallbackNextSteps(evaluations: AnswerEvaluation[], curriculum: any): NextStepItem[] {
-  const weakEvals = evaluations.filter(e => e.status === 'Needs Improvement' || e.status === 'Good');
-  
-  if (weakEvals.length > 0) {
-    return weakEvals.slice(0, 3).map(e => {
-      const dayNum = parseInt(e.day.replace(/\D/g, ''), 10);
-      const currDay = getCurriculumDay(dayNum);
-      return {
-        day: e.day,
-        topic: e.topic,
-        reason: `Performance on ${e.topic} showed opportunities to deepen implementation details.`,
-        items: currDay?.objectives.slice(0, 3) || ['Review key concepts', 'Practice implementation']
-      };
-    });
-  }
+  const failedDays = evaluations
+    .filter(e => e.status === 'Needs Improvement')
+    .map(e => parseInt(e.day.replace(/\D/g, ''), 10));
 
-  return [
-    {
-      day: 'Day 18',
-      topic: 'Agentic AI',
-      reason: 'State management and error handling was surface-level.',
-      items: ['Tool selection', 'State persistence', 'Error recovery']
-    },
-    {
-      day: 'Day 21',
-      topic: 'MCP',
-      reason: 'Interface design was missing from the tool responses.',
-      items: ['Tool definitions', 'MCP architecture', 'Context exchange']
-    }
-  ];
+  const recommendedDays = failedDays.length > 0 ? failedDays : [12, 14];
+  
+  return recommendedDays.map(dayNum => {
+    const dayData = curriculum.days.find((d: any) => d.day === dayNum);
+    return {
+      day: `Day ${dayNum}`,
+      topic: dayData?.title || 'General AI',
+      reason: 'Requires reinforcement and code practice.',
+      items: dayData?.objectives || ['Review objectives.']
+    };
+  });
 }
 
 export function generateFallbackFeedback(
   candidate: CandidateProfile,
   evaluations: AnswerEvaluation[]
 ): FinalFeedback {
+  if (evaluations.length === 0) {
+    return generateNotAssessableFeedback(candidate);
+  }
+
   const name = candidate.member?.name || candidate.name || 'Candidate';
   const strongCount = evaluations.filter(e => e.status === 'Strong').length;
   const goodCount = evaluations.filter(e => e.status === 'Good').length;

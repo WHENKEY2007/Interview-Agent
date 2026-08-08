@@ -31,8 +31,17 @@ export function OverallScore() {
   let overallScore = fallbackScore;
   let overallLabel = fallbackLabel;
   let overallInsight = fallbackInsight;
+  let isNotAssessable = false;
 
-  if (finalReport && typeof finalReport.overallScore === 'number') {
+  if (finalReport && (finalReport.overallScore === null || finalReport.overallScore === undefined)) {
+    isNotAssessable = true;
+    overallScore = 0;
+    overallLabel = 'Not Assessed';
+  } else if (!finalReport && (!evaluations || evaluations.length === 0)) {
+    isNotAssessable = true;
+    overallScore = 0;
+    overallLabel = 'Not Assessed';
+  } else if (finalReport && typeof finalReport.overallScore === 'number') {
     overallScore = finalReport.overallScore;
     if (overallScore >= 90) {
       overallLabel = 'Outstanding Performance';
@@ -86,8 +95,14 @@ export function OverallScore() {
         </svg>
         <div className="absolute inset-0 grid place-content-center text-center">
           <p className="text-[44px] font-semibold leading-none tracking-[-0.04em] text-fg">
-            <AnimatedNumber value={overallScore} />
-            <span className="text-[18px] text-dim"> / 100</span>
+            {isNotAssessable ? (
+              "N/A"
+            ) : (
+              <>
+                <AnimatedNumber value={overallScore} />
+                <span className="text-[18px] text-dim"> / 100</span>
+              </>
+            )}
           </p>
           <p className="mt-2 text-2xs font-medium uppercase tracking-[0.14em] text-[#A5A7FB]">{overallLabel}</p>
         </div>

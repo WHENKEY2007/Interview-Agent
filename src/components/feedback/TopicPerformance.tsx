@@ -22,8 +22,15 @@ export function TopicPerformance() {
   const { finalReport, evaluations } = useSession();
 
   let topicScores = fallbackTopicScores;
+  let isNotAssessable = false;
 
-  if (finalReport && Array.isArray(finalReport.topicPerformance) && finalReport.topicPerformance.length > 0) {
+  if (finalReport && (finalReport.overallScore === null || finalReport.overallScore === undefined)) {
+    isNotAssessable = true;
+    topicScores = [];
+  } else if (!finalReport && (!evaluations || evaluations.length === 0)) {
+    isNotAssessable = true;
+    topicScores = [];
+  } else if (finalReport && Array.isArray(finalReport.topicPerformance) && finalReport.topicPerformance.length > 0) {
     topicScores = finalReport.topicPerformance.map((tp: any) => ({
       topic: tp.topic,
       score: tp.score,
@@ -54,31 +61,39 @@ export function TopicPerformance() {
         <span className="font-mono text-2xs text-dim">{topicScores.length} topics</span>
       </div>
 
-      <ul className="mt-5 flex h-[220px] items-end gap-3 border-b border-line pb-0">
-        {topicScores.map((t, i) => {
-          const tone = scoreTone(t.score);
-          return (
-            <li key={t.topic} className="flex h-full flex-1 flex-col justify-end">
-              <p className={cn('mb-2 text-center font-mono text-[13px]', textColor[tone])}>{t.score}%</p>
-              <motion.div
-                initial={{ height: 0 }}
-                animate={{ height: `${t.score}%` }}
-                transition={{ duration: 1, delay: 0.15 + i * 0.08, ease: [0.16, 1, 0.3, 1] }}
-                className={cn('w-full rounded-t-md', barColor[tone])}
-                style={{ opacity: 0.85 }} />
-              
-            </li>);
+      {isNotAssessable ? (
+        <div className="flex h-[280px] flex-col items-center justify-center text-center">
+          <p className="text-[13.5px] text-dim">No topic performance data to display.</p>
+        </div>
+      ) : (
+        <>
+          <ul className="mt-5 flex h-[220px] items-end gap-3 border-b border-line pb-0">
+            {topicScores.map((t, i) => {
+              const tone = scoreTone(t.score);
+              return (
+                <li key={t.topic} className="flex h-full flex-1 flex-col justify-end">
+                  <p className={cn('mb-2 text-center font-mono text-[13px]', textColor[tone])}>{t.score}%</p>
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: `${t.score}%` }}
+                    transition={{ duration: 1, delay: 0.15 + i * 0.08, ease: [0.16, 1, 0.3, 1] }}
+                    className={cn('w-full rounded-t-md', barColor[tone])}
+                    style={{ opacity: 0.85 }} />
+                </li>
+              );
+            })}
+          </ul>
 
-        })}
-      </ul>
-
-      <ul className="mt-3 flex gap-3">
-        {topicScores.map((t) =>
-        <li key={t.topic} className="flex-1 text-center">
-            <p className="text-[12px] font-medium leading-tight text-sub">{t.topic}</p>
-            <p className="mt-0.5 font-mono text-2xs text-dim">{t.day}</p>
-          </li>
-        )}
-      </ul>
-    </Panel>);
+          <ul className="mt-3 flex gap-3">
+            {topicScores.map((t) => (
+              <li key={t.topic} className="flex-1 text-center">
+                <p className="text-[12px] font-medium leading-tight text-sub">{t.topic}</p>
+                <p className="mt-0.5 font-mono text-2xs text-dim">{t.day}</p>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Panel>
+  );
 }
