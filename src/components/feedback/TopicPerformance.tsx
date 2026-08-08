@@ -19,12 +19,17 @@ const textColor: Record<string, string> = {
 };
 
 export function TopicPerformance() {
-  const { evaluations } = useSession();
+  const { finalReport, evaluations } = useSession();
 
-  // Compute topic scores dynamically if evaluations exist
   let topicScores = fallbackTopicScores;
 
-  if (evaluations && evaluations.length > 0) {
+  if (finalReport && Array.isArray(finalReport.topicPerformance) && finalReport.topicPerformance.length > 0) {
+    topicScores = finalReport.topicPerformance.map((tp: any) => ({
+      topic: tp.topic,
+      score: tp.score,
+      day: tp.day
+    }));
+  } else if (evaluations && evaluations.length > 0) {
     const topicMap: Record<string, { totalScore: number; count: number; day: string }> = {};
     evaluations.forEach((e: any) => {
       const sc = e.status === 'Strong' ? 91 : e.status === 'Good' ? 78 : 62;

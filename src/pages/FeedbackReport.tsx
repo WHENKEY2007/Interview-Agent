@@ -42,7 +42,7 @@ export function FeedbackReport() {
             <div className="flex items-center gap-2">
               <Badge tone="accent">Adaptive interview</Badge>
               <Badge tone="outline" mono>
-                {minutes} min · {reviewsList.length * 2} questions
+                {minutes} min · {reviewsList.length} questions
               </Badge>
             </div>
             <h1 className="mt-3 text-[32px] font-semibold tracking-[-0.03em] text-fg">Interview Performance</h1>

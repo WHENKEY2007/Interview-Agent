@@ -116,7 +116,7 @@ export async function handleCandidateMessage(
   // Check if message is an end early request
   if (message === '[END_EARLY]') {
     session.status = 'COMPLETED';
-    const finalReport = await generateFinalFeedback(session.candidate, session.evaluations);
+    const finalReport = await generateFinalFeedback(session);
     session.finalFeedback = finalReport;
     saveSession(sessionId, session);
     return {
@@ -249,7 +249,7 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
     if (meetsQuestionsConstraint && meetsDaysConstraint) {
       session.status = 'COMPLETED';
       
-      const finalReport = await generateFinalFeedback(session.candidate, session.evaluations);
+      const finalReport = await generateFinalFeedback(session);
       session.finalFeedback = finalReport;
 
       saveSession(sessionId, session);

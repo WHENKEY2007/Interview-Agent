@@ -15,20 +15,27 @@ const PARTICLES = Array.from({ length: 14 }).map((_, i) => ({
 
 export function InterviewComplete() {
   const navigate = useNavigate();
-  const { durationSeconds } = useSession();
+  const { durationSeconds, evaluations, finalReport, answered } = useSession();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const t = window.setTimeout(() => setReady(true), 900);
+    const t = window.setTimeout(() => setReady(true), 600);
     return () => window.clearTimeout(t);
   }, []);
 
   const minutes = Math.max(1, Math.round(durationSeconds / 60));
+  const questionCount = evaluations && evaluations.length > 0 ? evaluations.length : (answered || 8);
+  const topicCount = finalReport && Array.isArray(finalReport.topicPerformance) && finalReport.topicPerformance.length > 0
+    ? finalReport.topicPerformance.length
+    : (evaluations && evaluations.length > 0 ? new Set(evaluations.map((e: any) => e.topic)).size : 4);
 
   const summary = [
-  { value: '10', label: 'Questions' },
-  { value: '5', label: 'Topics' },
-  { value: `${minutes}`, label: 'Minutes' }];
+    { value: `${questionCount}`, label: 'Questions' },
+    { value: `${topicCount}`, label: 'Topics' },
+    { value: `${minutes}`, label: 'Minutes' }
+  ];
+
+  const isReady = !!finalReport || ready;
 
 
   return (
@@ -101,12 +108,12 @@ export function InterviewComplete() {
           
           <Button
             size="lg"
-            disabled={!ready}
+            disabled={!isReady}
             onClick={() => navigate('/report')}
             iconRight={<ArrowRightIcon size={16} />}
             className="w-full sm:w-auto">
             
-            {ready ? 'View Interview Feedback' : 'Compiling your report…'}
+            {isReady ? 'View Interview Feedback' : 'Compiling your report…'}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
             Back to Dashboard

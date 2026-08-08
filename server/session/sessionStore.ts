@@ -58,7 +58,26 @@ export interface SessionState {
     summary: string;
     strengths: string[];
     gaps: string[];
-    next: any[];
+    next: Array<{
+      day: string;
+      topic: string;
+      reason: string;
+      items: string[];
+    } | string>;
+    overallScore?: number;
+    technicalScore?: number;
+    depthScore?: number;
+    communicationScore?: number;
+    topicPerformance?: Array<{
+      day: string;
+      topic: string;
+      score: number;
+      level: 'strong' | 'good' | 'needs-improvement';
+      strengths: string[];
+      gaps: string[];
+    }>;
+    questionReviews?: AnswerEvaluation[];
+    recommendations?: string[];
   };
 }
 
