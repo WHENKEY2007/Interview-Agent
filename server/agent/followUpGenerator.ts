@@ -1,16 +1,18 @@
 import { generateContent } from '../llm/llmClient';
 import { CandidateProfile, CurriculumDay } from '../data/dataLoader';
 import { EvaluationResult } from './answerEvaluator';
+import { FollowUpStrategy } from './interviewDecisionEngine';
 
 export async function generateFollowUp(
   candidate: CandidateProfile,
   day: CurriculumDay,
   question: string,
   answer: string,
-  evaluation: EvaluationResult
+  evaluation: EvaluationResult,
+  strategy: FollowUpStrategy
 ): Promise<{ text: string; badge: string; difficultyShift?: 'up' | 'down' | 'same' }> {
   const systemInstruction = `You are a professional, collaborative technical interviewer conducting a live dialogue.
-You are generating a single follow-up question to probe the candidate's understanding further, based on their previous answer and your evaluation.
+You are generating a single follow-up question to probe the candidate's understanding further, based on their previous answer, your evaluation, and the decided strategy.
 
 Candidate Info:
 - Name: ${candidate.member.name}
@@ -20,34 +22,48 @@ Candidate Info:
 Day Context: Day ${day.day} - ${day.title} (Objectives: ${day.objectives.join(', ')})
 Original Question: "${question}"
 Candidate Answer: "${answer}"
+
 Your Evaluation:
 - Quality classification: ${evaluation.quality}
 - Gaps identified: ${evaluation.gaps.join(', ')}
 - Strengths identified: ${evaluation.strengths.join(', ')}
+- Misconceptions: ${evaluation.misconceptions.join(', ')}
 
-Guidelines for the Follow-Up Response:
-1. Speak directly to the candidate in a supportive but rigorous tone. Acknowledge what they got right, then ask the follow-up.
-2. If quality is "strong": Challenge them! Push the difficulty up. Ask about scale, latency, edge cases, cost, or alternative architectural choices (e.g. "Excellent. Now imagine memory cost is the binding constraint...").
-3. If quality is "partial": Probe their gaps! Ask them directly about a specific detail they missed or left vague (e.g. "You mentioned chunking, but how do you handle metadata filtering at query time?").
-4. If quality is "irrelevant" or "unknown": Give a guided prompt. Lower the difficulty or clarify the question. Point them in the right direction to help them start reasoning (e.g. "That's okay. Think about the retrieval stage first — what signal could you inspect...").
-5. Keep your response concise (2 to 3 sentences maximum). Output ONLY the conversational interviewer response. No extra formatting.`;
+Decided Follow-up Strategy: ${strategy}
 
-  const prompt = `Generate the follow-up response. Candidate was classified as having a "${evaluation.quality}" response.`;
+Guidelines for the Follow-Up Response based on strategy:
+1. Speak directly to the candidate in a supportive but rigorous tone. Acknowledge what they got right briefly, then pose the next question.
+2. If strategy is "challenge" (and quality is "strong"): Challenge them! Push the difficulty up. Ask about scale, latency, edge cases, cost, or alternative architectural choices.
+3. If strategy is "challenge" (and quality is "incorrect"): Misconception detected! Challenge their reasoning with a targeted follow-up scenario that tests their incorrect assumption without giving the correct answer away.
+4. If strategy is "probe": Probe their gaps! Ask them directly about a specific detail they missed or left vague. Do NOT ask generic "tell me more" questions; ask about chunks, metadata, indexes, etc.
+5. If strategy is "redirect": Off-topic or irrelevant answer! Politely acknowledge and redirect them back to the active curriculum objectives of today's topic. Give them an opportunity to answer.
+6. If strategy is "clarify": The answer was ambiguous. Ask them to explain a specific part of their design or logic.
+7. Keep your response concise (2 to 3 sentences maximum). Output ONLY the conversational interviewer response. No extra formatting.`;
+
+  const prompt = `Generate the follow-up response matching the strategy "${strategy}".`;
 
   const text = await generateContent(prompt, systemInstruction);
 
   let badge = 'Follow-up';
   let difficultyShift: 'up' | 'down' | 'same' = 'same';
 
-  if (evaluation.quality === 'strong') {
-    badge = 'Going deeper';
-    difficultyShift = 'up';
-  } else if (evaluation.quality === 'unknown') {
-    badge = 'Guided prompt';
-    difficultyShift = 'down';
-  } else if (evaluation.quality === 'irrelevant') {
-    badge = 'Clarifying the question';
-    difficultyShift = 'down';
+  if (strategy === 'challenge') {
+    if (evaluation.quality === 'strong') {
+      badge = 'Going deeper';
+      difficultyShift = 'up';
+    } else {
+      badge = 'Challenging misconception';
+      difficultyShift = 'down';
+    }
+  } else if (strategy === 'redirect') {
+    badge = 'Redirecting';
+    difficultyShift = 'same';
+  } else if (strategy === 'clarify') {
+    badge = 'Clarifying reasoning';
+    difficultyShift = 'same';
+  } else if (strategy === 'probe') {
+    badge = 'Probing concept';
+    difficultyShift = 'same';
   }
 
   return {

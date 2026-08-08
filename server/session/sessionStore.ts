@@ -33,6 +33,15 @@ export interface SessionState {
   turns: InterviewTurn[];
   questionsAsked: number;
   questionsAnswered: number;
+  primaryQuestionsAsked: number;
+  followUpsAsked: number;
+  currentTopicDepth: number;
+  candidateStrengths: string[];
+  candidateGaps: string[];
+  candidateMisconceptions: string[];
+  lastAnswerEvaluation?: any;
+  lastDecision?: string;
+  currentQuestionType: 'primary' | 'followup';
   curriculumDaysCovered: number[];
   currentTopic: string;
   currentQuestion: string;
@@ -63,6 +72,13 @@ export function createSession(sessionId: string, candidate: CandidateProfile): S
     turns: [],
     questionsAsked: 0,
     questionsAnswered: 0,
+    primaryQuestionsAsked: 0,
+    followUpsAsked: 0,
+    currentTopicDepth: 0,
+    candidateStrengths: [],
+    candidateGaps: [],
+    candidateMisconceptions: [],
+    currentQuestionType: 'primary',
     curriculumDaysCovered: [],
     currentTopic: '',
     currentQuestion: '',

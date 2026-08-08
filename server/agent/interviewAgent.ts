@@ -6,6 +6,7 @@ import { generateFollowUp } from './followUpGenerator';
 import { generateFinalFeedback } from './feedbackGenerator';
 import { generateContent } from '../llm/llmClient';
 import { generateInterviewPlan } from './interviewPlanner';
+import { determineNextAction } from './interviewDecisionEngine';
 
 /**
  * Starts a new interview session.
@@ -43,7 +44,7 @@ export async function startInterview(sessionId: string, candidateData: any): Pro
   session.interviewPlan = plan;
   session.planDayIndex = 0;
 
-  // Pick first day/topic
+  // Pick first day/topic from the plan
   const firstDayNum = plan.selectedDays[0] || 12;
   const day = getCurriculumDay(firstDayNum);
 
@@ -60,6 +61,10 @@ export async function startInterview(sessionId: string, candidateData: any): Pro
   session.currentQuestionDay = day.day;
   session.curriculumDaysCovered.push(day.day);
   session.questionsAsked = 1;
+  session.primaryQuestionsAsked = 1;
+  session.followUpsAsked = 0;
+  session.currentTopicDepth = 0;
+  session.currentQuestionType = 'primary';
   session.currentQuestionDifficulty = plan.targetDifficulty;
 
   // Record turn
@@ -163,39 +168,62 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
     };
   }
 
-  // Normal turn - evaluate answer & advance
+  // Normal turn - evaluate answer
   const day = getCurriculumDay(session.currentQuestionDay)!;
+  const evalResult = await evaluateAnswer(session.currentQuestion, message, day);
 
-  if (!session.isFollowUpStage) {
-    // 1. Evaluate primary answer
-    const evalResult = await evaluateAnswer(session.currentQuestion, message, day);
+  // Record evaluation item
+  const evalItem: AnswerEvaluation = {
+    id: `eval-${Date.now()}`,
+    topic: session.currentTopic,
+    day: `Day ${session.currentQuestionDay}`,
+    status: evalResult.quality === 'strong' ? 'Strong' : evalResult.quality === 'partial' ? 'Good' : 'Needs Improvement',
+    question: session.currentQuestion,
+    answer: message,
+    evaluation: evalResult.evaluation,
+    strengths: evalResult.strengths,
+    improvements: evalResult.gaps,
+    betterAnswer: evalResult.betterAnswerStructure
+  };
+  session.evaluations.push(evalItem);
+  session.questionsAnswered += 1;
 
-    // Record evaluation item
-    const evalItem: AnswerEvaluation = {
-      id: `eval-${Date.now()}`,
-      topic: session.currentTopic,
-      day: `Day ${session.currentQuestionDay}`,
-      status: evalResult.quality === 'strong' ? 'Strong' : evalResult.quality === 'partial' ? 'Good' : 'Needs Improvement',
-      question: session.currentQuestion,
-      answer: message,
-      evaluation: evalResult.evaluation,
-      strengths: evalResult.strengths,
-      improvements: evalResult.gaps,
-      betterAnswer: evalResult.betterAnswerStructure
-    };
-    session.evaluations.push(evalItem);
-    session.questionsAnswered += 1;
+  // Update session qualitative list states
+  if (evalResult.strengths) {
+    session.candidateStrengths = [...new Set([...session.candidateStrengths, ...evalResult.strengths])];
+  }
+  if (evalResult.gaps) {
+    session.candidateGaps = [...new Set([...session.candidateGaps, ...evalResult.gaps])];
+  }
+  if (evalResult.misconceptions) {
+    session.candidateMisconceptions = [...new Set([...session.candidateMisconceptions, ...evalResult.misconceptions])];
+  }
+  session.lastAnswerEvaluation = evalResult;
 
-    // 2. Generate dynamic follow-up
-    const followUp = await generateFollowUp(session.candidate, day, session.currentQuestion, message, evalResult);
+  // Call the Decision Engine to determine what interviewer action to take next
+  const decision = determineNextAction(session, evalResult);
+  session.lastDecision = decision.strategy;
 
-    session.isFollowUpStage = true;
-    session.followUpCount += 1;
+  if (decision.shouldFollowUp) {
+    // 1. Generate follow-up response
+    const followUp = await generateFollowUp(
+      session.candidate,
+      day,
+      session.currentQuestion,
+      message,
+      evalResult,
+      decision.strategy
+    );
+
+    // Update state parameters
+    session.followUpsAsked += 1;
     session.questionsAsked += 1;
+    session.currentTopicDepth += 1;
     session.currentQuestion = followUp.text;
     session.currentQuestionDifficulty = followUp.difficultyShift === 'up' ? 'Advanced' : followUp.difficultyShift === 'down' ? 'Foundational' : 'Intermediate';
+    session.currentQuestionType = 'followup';
 
-    // Record interviewer turn
+    // Record turn
     session.turns.push({
       id: `turn-${Date.now()}-f`,
       role: 'interviewer',
@@ -213,19 +241,12 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
       done: false
     };
   } else {
-    // Follow-up answer received. Increment answers.
-    session.questionsAnswered += 1;
-
-    // Check if we met completion conditions (min 8 questions and 4 days covered)
-    // Here session.questionsAsked tracks how many interviewer turns we made. 
-    // Minimum 8 questions implies at least 8 turns of questions/follow-ups.
-    // If we covered 4 topics, and asked 2 questions each (1 primary + 1 follow-up), that is 8 questions!
+    // Determine whether completion criteria are met
     const coveredDaysCount = session.curriculumDaysCovered.length;
     const meetsQuestionsConstraint = session.questionsAsked >= 8;
     const meetsDaysConstraint = coveredDaysCount >= 4;
 
     if (meetsQuestionsConstraint && meetsDaysConstraint) {
-      // Complete interview
       session.status = 'COMPLETED';
       
       const finalReport = await generateFinalFeedback(session.candidate, session.evaluations);
@@ -239,10 +260,11 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
         feedback: finalReport
       };
     } else {
-      // Move to next day/topic in the plan
+      // Transition to the next planned topic/day
       session.planDayIndex += 1;
+      session.currentTopicDepth = 0;
       const plan = session.interviewPlan;
-      
+
       let nextDayNum: number;
       let targetDiff: 'Foundational' | 'Intermediate' | 'Advanced' = 'Intermediate';
 
@@ -265,7 +287,8 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
       session.currentQuestionDay = nextDay.day;
       session.curriculumDaysCovered.push(nextDay.day);
       session.questionsAsked += 1;
-      session.isFollowUpStage = false;
+      session.primaryQuestionsAsked += 1;
+      session.currentQuestionType = 'primary';
       session.clarifyUsed = false;
       session.currentQuestionDifficulty = targetDiff;
 
