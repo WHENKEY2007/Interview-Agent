@@ -12,7 +12,7 @@ loadData();
 const curriculum = getCurriculum();
 const allCandidates = getCandidates();
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, process.env.MOCK_LLM === 'true' ? 0 : ms));
 
 console.log('================================================');
 console.log('RUNNING AI ADAPTIVE INTERVIEW TEST SUITE (PHASE 6)');

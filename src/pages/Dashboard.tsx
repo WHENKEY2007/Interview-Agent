@@ -12,7 +12,7 @@ import { InterviewFocusCard } from '../components/dashboard/InterviewFocusCard';
 import { RecentPerformanceCard } from '../components/dashboard/RecentPerformanceCard';
 import { useSession } from '../contexts/SessionContext';
 import candidatesData from '../../data/candidates.json';
-import { candidate as fallbackCandidate, cohortTopics } from '../data/cohort';
+import { getCurriculumCoverage } from '../utils/curriculumCoverage';
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -24,8 +24,9 @@ export function Dashboard() {
     }
   }, [activeCandidate, setActiveCandidate]);
 
-  const candidate: any = activeCandidate || fallbackCandidate;
-  const firstName = candidate.member ? candidate.member.name.split(' ')[0] : candidate.name.split(' ')[0];
+  const candidate: any = activeCandidate || candidatesData.candidates[0];
+  const curriculumTopics = getCurriculumCoverage(candidate);
+  const firstName = candidate.member ? candidate.member.name.split(' ')[0] : (candidate.name ? candidate.name.split(' ')[0] : 'Candidate');
 
   const handleStartInterview = () => {
     setSessionId(null); // Clear previous session for new start
@@ -122,13 +123,13 @@ export function Dashboard() {
                 Curriculum coverage
               </h2>
               <p className="mt-1 text-[13.5px] text-dim">
-                Seven modules across the 31-day enterprise AI engineering program.
+                {curriculumTopics.length} modules across the 31-day enterprise AI engineering program.
               </p>
             </div>
           </div>
 
           <ul className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {cohortTopics.map((topic, i) =>
+            {curriculumTopics.map((topic, i) =>
             <TopicCard key={topic.id} topic={topic} index={i} />
             )}
           </ul>

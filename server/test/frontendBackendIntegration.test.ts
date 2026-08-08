@@ -6,7 +6,7 @@ import { getSession } from '../session/sessionStore';
 
 loadData();
 const allCandidates = getCandidates();
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, process.env.MOCK_LLM === 'true' ? 0 : ms));
 
 // Helper to simulate request / response handler call
 function simulatePost(body: any): Promise<{ status: number; data: any }> {

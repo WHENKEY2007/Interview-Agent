@@ -11,7 +11,7 @@ loadData();
 const allCandidates = getCandidates();
 const curriculum = getCurriculum();
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, process.env.MOCK_LLM === 'true' ? 0 : ms));
 
 console.log('================================================');
 console.log('RUNNING HACKATHON READINESS TEST SUITE (PHASE 7)');

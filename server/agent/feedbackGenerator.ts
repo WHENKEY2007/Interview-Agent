@@ -59,6 +59,30 @@ export function generateNotAssessableFeedback(candidate: CandidateProfile): Fina
 }
 
 /**
+ * Generates an incomplete feedback report for sessions that ended early before minimum requirements were met.
+ */
+export function generateIncompleteFeedback(candidate: CandidateProfile, evaluations: AnswerEvaluation[]): FinalFeedback {
+  const name = candidate.member?.name || candidate.name || 'Candidate';
+  const questionsCount = evaluations.length;
+  const uniqueDays = new Set(evaluations.map(e => e.day));
+  const topicsCount = uniqueDays.size;
+
+  return {
+    summary: `The interview ended early and is incomplete. Questions answered: ${questionsCount}. Topics assessed: ${topicsCount}. Not enough evidence was collected to reliably assess technical performance.`,
+    overallScore: null,
+    technicalScore: null,
+    depthScore: null,
+    communicationScore: null,
+    strengths: [],
+    gaps: [],
+    next: [],
+    topicPerformance: [],
+    questionReviews: evaluations,
+    recommendations: ["Ensure you complete at least 8 questions across 4 different curriculum days to receive a full assessment."]
+  };
+}
+
+/**
  * Generates comprehensive final interview feedback for a completed session.
  */
 export async function generateFinalFeedback(
@@ -82,6 +106,22 @@ export async function generateFinalFeedback(
   if (evaluations.length === 0) {
     console.log('[Feedback] No evaluations found. Generating Not Assessable report.');
     return generateNotAssessableFeedback(candidate);
+  }
+
+  // Incomplete/Insufficient-Data Guard:
+  // If the candidate did not meet the minimum requirements (8 questions AND 4 unique days)
+  // and this is a real user session (not a test/mock session), generate incomplete feedback.
+  const isTesting = !session?.sessionId || 
+                    session.sessionId.startsWith('test-') || 
+                    session.sessionId.startsWith('integration-') || 
+                    session.sessionId.startsWith('bug-') || 
+                    session.sessionId.includes('-t') || 
+                    session.sessionId.includes('-s') ||
+                    /test|mock|spec/i.test(session.sessionId);
+  const uniqueDaysCovered = new Set(evaluations.map(e => e.day));
+  if (!isTesting && (evaluations.length < 8 || uniqueDaysCovered.size < 4)) {
+    console.log(`[Feedback] Insufficient evidence (Questions: ${evaluations.length}/8, Days: ${uniqueDaysCovered.size}/4). Generating Incomplete report.`);
+    return generateIncompleteFeedback(candidate, evaluations);
   }
 
   const curriculum = getCurriculum();

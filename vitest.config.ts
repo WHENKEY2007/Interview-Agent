@@ -1,3 +1,5 @@
+process.env.MOCK_LLM = 'true';
+
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -15,6 +17,9 @@ export default defineConfig({
       concurrent: false
     },
     testTimeout: 120000,
-    hookTimeout: 30000
+    hookTimeout: 30000,
+    env: {
+      MOCK_LLM: 'true'
+    }
   }
 });

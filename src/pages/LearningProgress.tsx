@@ -3,9 +3,10 @@ import { TopNav } from '../components/TopNav';
 import { Panel } from '../components/ui/Panel';
 import { ProgressBar } from '../components/ui/ProgressBar';
 import { CohortProgressCard } from '../components/dashboard/CohortProgressCard';
-import { cohortTopics } from '../data/cohort';
 import { cn } from '../utils/cn';
 import { useSession } from '../contexts/SessionContext';
+import candidatesData from '../../data/candidates.json';
+import { getCurriculumCoverage } from '../utils/curriculumCoverage';
 
 const signalLabel: Record<string, { text: string; className: string }> = {
   strong: { text: 'Strong signal', className: 'text-[#7EE2A8]' },
@@ -15,7 +16,9 @@ const signalLabel: Record<string, { text: string; className: string }> = {
 
 export function LearningProgress() {
   const { activeCandidate } = useSession();
-  const candName = activeCandidate?.member?.name || activeCandidate?.name || 'Candidate';
+  const candidate = activeCandidate || candidatesData.candidates[0];
+  const curriculumTopics = getCurriculumCoverage(candidate);
+  const candName = candidate.member?.name || candidate.name || 'Candidate';
 
   return (
     <div className="min-h-full w-full bg-base">
@@ -34,7 +37,7 @@ export function LearningProgress() {
         <Panel className="mt-6 p-5">
           <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-sub">Module signals</h2>
           <ul className="mt-4 divide-y divide-line">
-            {cohortTopics.map((t, i) => (
+            {curriculumTopics.map((t, i) => (
               <li key={t.id} className="flex flex-wrap items-center gap-4 py-4">
                 <div className="min-w-[200px] flex-1">
                   <p className="text-[14.5px] font-medium text-fg">{t.name}</p>
