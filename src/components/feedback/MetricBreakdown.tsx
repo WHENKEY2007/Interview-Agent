@@ -6,11 +6,25 @@ import { metricScores as fallbackMetricScores } from '../../data/feedback';
 import { scoreTone } from '../../utils/interviewEngine';
 
 export function MetricBreakdown() {
-  const { evaluations } = useSession();
+  const { finalReport, evaluations } = useSession();
   
   let metricScores = fallbackMetricScores;
 
-  if (evaluations && evaluations.length > 0) {
+  if (finalReport && typeof finalReport.technicalScore === 'number') {
+    const tech = finalReport.technicalScore;
+    const depth = finalReport.depthScore ?? Math.max(0, Math.round(tech * 0.90));
+    const comm = finalReport.communicationScore ?? Math.min(100, Math.round(tech * 1.04));
+    const overall = finalReport.overallScore ?? tech;
+    const practical = Math.min(100, Math.round((tech + depth) / 2));
+
+    metricScores = [
+      { label: 'Technical Understanding', score: tech, note: 'Accurate concepts, correct terminology' },
+      { label: 'Problem Solving', score: overall, note: 'Structured diagnosis, logical resolution' },
+      { label: 'Communication', score: comm, note: 'Clear narrative structure, easy to follow' },
+      { label: 'Depth of Explanation', score: depth, note: 'Explains trade-offs and implementation detail' },
+      { label: 'Practical Application', score: practical, note: 'Connects concepts back to concrete tools' }
+    ];
+  } else if (evaluations && evaluations.length > 0) {
     // Average score of the individual evaluations
     const baseScore = Math.round(evaluations.reduce((sum, e) => {
       const sc = e.status === 'Strong' ? 91 : e.status === 'Good' ? 78 : 62;

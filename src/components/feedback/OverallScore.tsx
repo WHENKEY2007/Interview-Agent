@@ -32,7 +32,18 @@ export function OverallScore() {
   let overallLabel = fallbackLabel;
   let overallInsight = fallbackInsight;
 
-  if (evaluations && evaluations.length > 0) {
+  if (finalReport && typeof finalReport.overallScore === 'number') {
+    overallScore = finalReport.overallScore;
+    if (overallScore >= 90) {
+      overallLabel = 'Outstanding Performance';
+    } else if (overallScore >= 80) {
+      overallLabel = 'Strong Performance';
+    } else if (overallScore >= 70) {
+      overallLabel = 'Good Performance';
+    } else {
+      overallLabel = 'Needs Review';
+    }
+  } else if (evaluations && evaluations.length > 0) {
     const scoreSum = evaluations.reduce((sum, e) => {
       const sc = e.status === 'Strong' ? 91 : e.status === 'Good' ? 78 : 62;
       return sum + sc;
