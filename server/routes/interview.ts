@@ -144,4 +144,84 @@ router.get('/interview/session/:sessionId', (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/diagnostics
+ * DIAGNOSTICS ENDPOINT: Used to inspect the runtime environment (API keys, bundled data files).
+ */
+router.get('/diagnostics', async (req: Request, res: Response) => {
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    const model = process.env.GEMINI_MODEL || 'not set';
+
+    const curriculumPath = path.join(process.cwd(), 'data/curriculum.json');
+    const candidatesPath = path.join(process.cwd(), 'data/candidates.json');
+
+    const curriculumExists = fs.existsSync(curriculumPath);
+    const candidatesExists = fs.existsSync(candidatesPath);
+
+    let curriculumLength = 0;
+    let candidatesCount = 0;
+    let fileError = null;
+
+    try {
+      if (curriculumExists) {
+        const raw = fs.readFileSync(curriculumPath, 'utf8');
+        curriculumLength = JSON.parse(raw).days?.length || 0;
+      }
+      if (candidatesExists) {
+        const raw = fs.readFileSync(candidatesPath, 'utf8');
+        candidatesCount = (JSON.parse(raw).candidates || []).length;
+      }
+    } catch (err: any) {
+      fileError = err.message;
+    }
+
+    // List files in current directory to help diagnose Vercel bundling
+    let rootFiles: string[] = [];
+    try {
+      rootFiles = fs.readdirSync(process.cwd());
+    } catch (err: any) {
+      rootFiles = [err.message];
+    }
+
+    let dataFiles: string[] = [];
+    try {
+      const dataDir = path.join(process.cwd(), 'data');
+      if (fs.existsSync(dataDir)) {
+        dataFiles = fs.readdirSync(dataDir);
+      }
+    } catch (err: any) {
+      dataFiles = [err.message];
+    }
+
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      cwd: process.cwd(),
+      rootFiles,
+      dataFiles,
+      env: {
+        hasApiKey: !!apiKey,
+        apiKeyLength: apiKey ? apiKey.length : 0,
+        apiKeyPreview: apiKey ? `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}` : 'none',
+        model
+      },
+      files: {
+        curriculumPath,
+        curriculumExists,
+        curriculumLength,
+        candidatesPath,
+        candidatesExists,
+        candidatesCount,
+        fileError
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
