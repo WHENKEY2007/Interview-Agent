@@ -1,5 +1,6 @@
 import { generateContent } from '../llm/llmClient';
 import { CurriculumDay } from '../data/dataLoader';
+import { safeParseJSON, validateAndNormalizeEvaluation } from './validation';
 
 export interface EvaluationResult {
   score: number;
@@ -9,12 +10,21 @@ export interface EvaluationResult {
   gaps: string[];
   misconceptions: string[];
   betterAnswerStructure: string[];
+  metrics?: {
+    technical: number;
+    problemSolving: number;
+    communication: number;
+    depth: number;
+    practical: number;
+  };
 }
 
 export async function evaluateAnswer(
   question: string,
   answer: string,
-  day: CurriculumDay
+  day: CurriculumDay,
+  objective: string,
+  previousContext = ''
 ): Promise<EvaluationResult> {
   const systemInstruction = `You are a rigorous technical interviewer evaluating a candidate's response against curriculum objectives.
 You must return your evaluation strictly as a JSON object.
@@ -23,11 +33,18 @@ Format your output exactly as follows:
 {
   "score": number (0 to 100),
   "quality": "strong" | "partial" | "incorrect" | "irrelevant" | "unknown",
-  "evaluation": "A detailed 1-2 sentence diagnostic feedback of the candidate's response",
-  "strengths": ["list of 1 or 2 specific technical concepts they explained correctly"],
+  "evaluation": "A detailed 1-2 sentence diagnostic feedback of the candidate's response evaluating their understanding of the targeted objective.",
+  "strengths": ["list of 1 or 2 specific technical concepts they explained correctly from their response"],
   "gaps": ["list of 1 or 2 specific concepts they missed or explained incorrectly"],
   "misconceptions": ["list of 1 or 2 specific logical or architectural misunderstandings they stated. Leave empty if none."],
-  "betterAnswerStructure": ["3 to 5 steps explaining how a stronger response should be structured physically or logically"]
+  "betterAnswerStructure": ["3 to 5 steps explaining how a stronger response should be structured physically or logically"],
+  "metrics": {
+    "technical": number (0 to 100, conceptual correctness and accuracy),
+    "problemSolving": number (0 to 100, logical approach and clarity),
+    "communication": number (0 to 100, structured explanation and readability),
+    "depth": number (0 to 100, covers trade-offs, edge cases, and parameters),
+    "practical": number (0 to 100, references specific libraries/tools, systems thinking)
+  }
 }
 
 EVALUATION SUBSTANCE RULES (CRITICAL):
@@ -41,33 +58,24 @@ Guidelines for quality classification:
 - "irrelevant": if the answer is completely off-topic or fails to answer the question posed.
 - "incorrect": if they answer the question but get the core facts wrong, state clear fallacies, or show severe misunderstanding of the target concepts.
 - "partial": if they touch on correct concepts but stay very surface-level, avoid practical details, or miss major parts of the solution.
-- "strong": if they demonstrate clear conceptual mastery, name specific tools/mechanisms, explain technical trade-offs, or describe structured debugging steps.`;
+- "strong": if they demonstrate clear mastery of the objective, name specific tools/mechanisms, explain technical trade-offs, or describe structured debugging steps.`;
 
   const prompt = `
 Question Asked: "${question}"
 Candidate Answer: "${answer}"
 Curriculum Topic: "Day ${day.day} - ${day.title}"
-Curriculum Objectives: ${day.objectives.join(', ')}
+Targeted Learning Objective: "${objective}"
+All Curriculum Objectives for reference: ${day.objectives.join(', ')}
+Previous Conversational Context:
+${previousContext || 'None (This is the first question on this topic).'}
 
 Please evaluate this answer and output only the valid JSON object.`;
 
   try {
     const responseText = await generateContent(prompt, systemInstruction, true);
-    // Parse the JSON output
-    const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-    const result = JSON.parse(cleanJson) as EvaluationResult;
-    
-    // Validate quality value
-    if (!['strong', 'partial', 'incorrect', 'irrelevant', 'unknown'].includes(result.quality)) {
-      result.quality = 'partial';
-    }
-    // Limit score ranges
-    result.score = Math.max(0, Math.min(100, (result.score !== undefined && result.score !== null) ? result.score : 70));
-    if (!result.misconceptions) {
-      result.misconceptions = [];
-    }
-
-    return result;
+    const parsed = safeParseJSON(responseText);
+    const validated = validateAndNormalizeEvaluation(parsed, question, answer, day);
+    return validated;
   } catch (error) {
     console.error('[Evaluator] Error parsing JSON evaluation. Returning fallback.', error);
     return {
@@ -77,7 +85,14 @@ Please evaluate this answer and output only the valid JSON object.`;
       strengths: ['Addressed the general topic.'],
       gaps: ['Missed implementation details.'],
       misconceptions: [],
-      betterAnswerStructure: ['Identify the core problem.', 'Explain the chosen strategy.', 'Discuss trade-offs.']
+      betterAnswerStructure: ['Identify the core problem.', 'Explain the chosen strategy.', 'Discuss trade-offs.'],
+      metrics: {
+        technical: 70,
+        problemSolving: 68,
+        communication: 72,
+        depth: 65,
+        practical: 66
+      }
     };
   }
 }

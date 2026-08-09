@@ -1,7 +1,7 @@
 import { generateContent } from '../llm/llmClient';
 import { CandidateProfile, CurriculumDay, getCurriculum } from '../data/dataLoader';
 import { SessionState } from '../session/sessionStore';
-import { validateQuestion, repairQuestion } from './validation';
+import { validateQuestion, repairQuestion, safeParseJSON, validateAndNormalizePrimaryQuestion } from './validation';
 
 /**
  * Dynamically selects a curriculum day to test next.
@@ -89,14 +89,14 @@ export function getDefaultFallbackQuestion(day: CurriculumDay, difficulty: strin
 
 /**
  * Generates a primary interview question for a specific curriculum day.
- * Returns the question text and its classified intent.
+ * Returns the question text, its classified intent, and targeted objective.
  */
 export async function generatePrimaryQuestion(
   candidate: CandidateProfile,
   day: CurriculumDay,
   difficulty: 'Foundational' | 'Intermediate' | 'Advanced' = 'Intermediate',
   previousQuestions: string[] = []
-): Promise<{ question: string; intent: string }> {
+): Promise<{ question: string; intent: string; objective: string }> {
   
   const systemInstruction = `You are an expert AI Technical Interviewer conducting a realistic, conversational, and focused interview.
 Your goal is to evaluate the candidate's understanding of Day ${day.day} (${day.title}).
@@ -107,7 +107,7 @@ Candidate Info:
 
 Curriculum Context:
 - Day: ${day.day} - ${day.title}
-- Main Objectives: ${day.objectives.slice(0, 2).join('; ')}
+- Main Objectives: ${day.objectives.slice(0, 3).join('; ')}
 - Associated Tools: ${day.tools.join(', ')}
 
 Target Difficulty: ${difficulty}
@@ -123,17 +123,18 @@ CONCISENESS & STYLE RULES (CRITICAL):
 You must return your response strictly as a JSON object matching this structure:
 {
   "question": "The single technical question text",
-  "intent": "conceptual" | "diagnostic" | "implementation" | "reasoning" | "tradeoff" | "architecture" | "debugging" | "scenario"
+  "intent": "conceptual" | "diagnostic" | "implementation" | "reasoning" | "tradeoff" | "architecture" | "debugging" | "scenario",
+  "objective": "Select the EXACT objective from the curriculum objectives listed above that this question targets"
 }`;
 
-  const prompt = `Generate a concise ${difficulty}-level primary question and classify its intent for Day ${day.day}: ${day.title}.`;
+  const prompt = `Generate a concise ${difficulty}-level primary question, classify its intent, and specify its objective for Day ${day.day}: ${day.title}.`;
 
   try {
     const rawResponse = await generateContent(prompt, systemInstruction, true);
-    const cleanJson = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsed = JSON.parse(cleanJson) as { question: string; intent: string };
+    const parsed = safeParseJSON(rawResponse);
+    const validated = validateAndNormalizePrimaryQuestion(parsed, day, difficulty, previousQuestions);
 
-    let cleanedQuestion = parsed.question
+    let cleanedQuestion = validated.question
       .replace(/^["']|["']$/g, '')
       .replace(/^(Interviewer|Question|AI):\s*/i, '')
       .trim();
@@ -162,13 +163,15 @@ You must return your response strictly as a JSON object matching this structure:
 
     return {
       question: cleanedQuestion,
-      intent: parsed.intent || 'conceptual'
+      intent: validated.intent,
+      objective: validated.objective
     };
   } catch (error) {
     console.error('[Generator] Error generating primary question. Returning fallback.', error);
     return {
       question: getDefaultFallbackQuestion(day, difficulty, previousQuestions),
-      intent: 'conceptual'
+      intent: 'conceptual',
+      objective: day.objectives[0] || 'Understand curriculum topics.'
     };
   }
 }

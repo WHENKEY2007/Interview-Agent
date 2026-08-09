@@ -28,6 +28,7 @@ router.post('/interview', async (req: Request, res: Response): Promise<Response>
       const reply = await startInterview(sessionId, candidate);
       const sessionState = getSession(sessionId)!;
       
+      const uniqueDays = new Set(sessionState.curriculumDaysCovered || []);
       const responsePayload: InterviewResponse = {
         reply,
         done: false,
@@ -40,7 +41,17 @@ router.post('/interview', async (req: Request, res: Response): Promise<Response>
         primaryQuestionsAsked: sessionState.primaryQuestionsAsked,
         followUpsAsked: sessionState.followUpsAsked,
         clarifyUsed: sessionState.clarifyUsed,
-        evaluations: sessionState.evaluations
+        evaluations: sessionState.evaluations,
+        progress: {
+          questionNumber: sessionState.questionsAsked,
+          totalQuestions: 10,
+          questionsAsked: sessionState.questionsAsked,
+          daysCovered: uniqueDays.size,
+          requiredDays: 4,
+          currentDay: sessionState.currentQuestionDay,
+          currentTopic: sessionState.currentTopic,
+          difficulty: sessionState.currentQuestionDifficulty
+        }
       };
       return res.json(responsePayload);
     }
@@ -55,6 +66,7 @@ router.post('/interview', async (req: Request, res: Response): Promise<Response>
       const result = await handleCandidateMessage(sessionId, message);
       const sessionState = getSession(sessionId)!;
 
+      const uniqueDays = new Set(sessionState.curriculumDaysCovered || []);
       const responsePayload: InterviewResponse = {
         ...result,
         turns: sessionState.turns,
@@ -66,7 +78,17 @@ router.post('/interview', async (req: Request, res: Response): Promise<Response>
         primaryQuestionsAsked: sessionState.primaryQuestionsAsked,
         followUpsAsked: sessionState.followUpsAsked,
         clarifyUsed: sessionState.clarifyUsed,
-        evaluations: sessionState.evaluations
+        evaluations: sessionState.evaluations,
+        progress: {
+          questionNumber: sessionState.questionsAsked,
+          totalQuestions: 10,
+          questionsAsked: sessionState.questionsAsked,
+          daysCovered: uniqueDays.size,
+          requiredDays: 4,
+          currentDay: sessionState.currentQuestionDay,
+          currentTopic: sessionState.currentTopic,
+          difficulty: sessionState.currentQuestionDifficulty
+        }
       };
       return res.json(responsePayload);
     }

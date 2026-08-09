@@ -1,4 +1,7 @@
 import { generateContent } from '../llm/llmClient';
+import { CandidateProfile, CurriculumDay, getCurriculum, getCurriculumDay } from '../data/dataLoader';
+import { AnswerEvaluation } from '../session/sessionStore';
+import { getDefaultFallbackQuestion } from './questionGenerator';
 
 /**
  * Extract keywords from a question, ignoring common stopwords.
@@ -140,4 +143,183 @@ Output ONLY the clean corrected question text.`;
     console.error('[Validation] Failed to repair question, returning original.', error);
     return invalidQuestion;
   }
+}
+
+/**
+ * Safely parses LLM JSON outputs, handling markdown formatting and extracting JSON substrings if needed.
+ */
+export function safeParseJSON(text: string): any {
+  if (!text) {
+    console.warn('[Validation] safeParseJSON received empty/null text');
+    return null;
+  }
+  const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.warn('[Validation] Direct JSON parsing failed. Attempting regex extraction...');
+    // Match anything between the first '{' and the last '}'
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch (innerErr) {
+        console.error('[Validation] Regex JSON extraction failed as well:', innerErr);
+      }
+    }
+    throw new Error('Failed to parse text as JSON: ' + (e as Error).message);
+  }
+}
+
+/**
+ * Validates and normalizes the generated primary question object.
+ */
+export function validateAndNormalizePrimaryQuestion(
+  parsed: any,
+  day: CurriculumDay,
+  difficulty: string,
+  previousQuestions: string[]
+): { question: string; intent: string; objective: string } {
+  if (!parsed || typeof parsed !== 'object') {
+    console.warn('[Validation] Parsed primary question is null or not an object. Triggering fallback.');
+    return {
+      question: getDefaultFallbackQuestion(day, difficulty, previousQuestions),
+      intent: 'conceptual',
+      objective: day.objectives[0] || 'Understand curriculum topics.'
+    };
+  }
+
+  let question = parsed.question;
+  let intent = parsed.intent;
+  let objective = parsed.objective;
+
+  if (typeof question !== 'string' || question.trim().length === 0) {
+    console.warn('[Validation] Missing or invalid question field in LLM response.');
+    question = getDefaultFallbackQuestion(day, difficulty, previousQuestions);
+  }
+
+  const validIntents = ['conceptual', 'diagnostic', 'implementation', 'reasoning', 'tradeoff', 'architecture', 'debugging', 'scenario'];
+  if (typeof intent !== 'string' || !validIntents.includes(intent.toLowerCase())) {
+    intent = 'conceptual';
+  }
+
+  if (typeof objective !== 'string' || objective.trim().length === 0) {
+    // Default to the first objective of the curriculum day
+    objective = day.objectives[0] || 'Understand core curriculum concepts.';
+  }
+
+  return {
+    question: question.trim(),
+    intent: intent.toLowerCase(),
+    objective: objective.trim()
+  };
+}
+
+/**
+ * Validates and normalizes the answer evaluation result.
+ */
+export function validateAndNormalizeEvaluation(
+  parsed: any,
+  question: string,
+  answer: string,
+  day: CurriculumDay
+): {
+  score: number;
+  quality: 'strong' | 'partial' | 'incorrect' | 'irrelevant' | 'unknown';
+  evaluation: string;
+  strengths: string[];
+  gaps: string[];
+  misconceptions: string[];
+  betterAnswerStructure: string[];
+  metrics: {
+    technical: number;
+    problemSolving: number;
+    communication: number;
+    depth: number;
+    practical: number;
+  };
+} {
+  const defaultMetrics = (score: number) => ({
+    technical: score,
+    problemSolving: Math.max(0, Math.min(100, Math.round(score * 0.98))),
+    communication: Math.max(0, Math.min(100, Math.round(score * 1.04))),
+    depth: Math.max(0, Math.min(100, Math.round(score * 0.92))),
+    practical: Math.max(0, Math.min(100, Math.round(score * 0.95)))
+  });
+
+  if (!parsed || typeof parsed !== 'object') {
+    console.warn('[Validation] Parsed evaluation is null or not an object. Triggering fallback.');
+    return {
+      score: 70,
+      quality: 'partial',
+      evaluation: 'Candidate responded but the automated evaluation could not verify full details.',
+      strengths: ['Addressed the general topic.'],
+      gaps: ['Missed implementation details.'],
+      misconceptions: [],
+      betterAnswerStructure: ['Identify the core problem.', 'Explain the chosen strategy.', 'Discuss trade-offs.'],
+      metrics: defaultMetrics(70)
+    };
+  }
+
+  let score = typeof parsed.score === 'number' ? parsed.score : parseInt(parsed.score, 10);
+  if (isNaN(score)) {
+    score = 70;
+  }
+  score = Math.max(0, Math.min(100, score));
+
+  let quality = parsed.quality;
+  const validQualities = ['strong', 'partial', 'incorrect', 'irrelevant', 'unknown'];
+  if (typeof quality !== 'string' || !validQualities.includes(quality.toLowerCase())) {
+    quality = 'partial';
+  }
+
+  let evaluation = parsed.evaluation;
+  if (typeof evaluation !== 'string' || evaluation.trim().length === 0) {
+    evaluation = 'Candidate responded but the automated evaluation could not verify full details.';
+  }
+
+  const strengths = Array.isArray(parsed.strengths)
+    ? parsed.strengths.filter((s: any) => typeof s === 'string').map((s: string) => s.trim())
+    : ['Addressed the general topic.'];
+
+  const gaps = Array.isArray(parsed.gaps)
+    ? parsed.gaps.filter((g: any) => typeof g === 'string').map((g: string) => g.trim())
+    : ['Missed implementation details.'];
+
+  const misconceptions = Array.isArray(parsed.misconceptions)
+    ? parsed.misconceptions.filter((m: any) => typeof m === 'string').map((m: string) => m.trim())
+    : [];
+
+  const betterAnswerStructure = Array.isArray(parsed.betterAnswerStructure)
+    ? parsed.betterAnswerStructure.filter((b: any) => typeof b === 'string').map((b: string) => b.trim())
+    : ['Identify the core problem.', 'Explain the chosen strategy.', 'Discuss trade-offs.'];
+
+  // Normalize metrics
+  let metrics = parsed.metrics;
+  if (!metrics || typeof metrics !== 'object') {
+    metrics = defaultMetrics(score);
+  } else {
+    const validateMetric = (val: any, fallback: number) => {
+      const num = typeof val === 'number' ? val : parseInt(val, 10);
+      return isNaN(num) ? fallback : Math.max(0, Math.min(100, num));
+    };
+    metrics = {
+      technical: validateMetric(metrics.technical, score),
+      problemSolving: validateMetric(metrics.problemSolving, score),
+      communication: validateMetric(metrics.communication, score),
+      depth: validateMetric(metrics.depth, score),
+      practical: validateMetric(metrics.practical, score)
+    };
+  }
+
+  return {
+    score,
+    quality: quality.toLowerCase() as any,
+    evaluation: evaluation.trim(),
+    strengths,
+    gaps,
+    misconceptions,
+    betterAnswerStructure,
+    metrics
+  };
 }

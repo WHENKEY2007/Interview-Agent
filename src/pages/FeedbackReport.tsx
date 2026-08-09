@@ -14,6 +14,13 @@ import { NextStepCard } from '../components/feedback/NextStepCard';
 import { candidate as fallbackCandidate } from '../data/cohort';
 import { useSession } from '../contexts/SessionContext';
 import { getModuleIdForDay } from '../utils/curriculumCoverage';
+import { cn } from '../utils/cn';
+
+const signalStyle = {
+  Strong: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 dark:bg-emerald-500/5 dark:border-emerald-500/10',
+  Moderate: 'bg-amber-500/10 text-amber-500 border-amber-500/20 dark:bg-amber-500/5 dark:border-amber-500/10',
+  'Needs Practice': 'bg-rose-500/10 text-rose-500 border-rose-500/20 dark:bg-rose-500/5 dark:border-rose-500/10'
+};
 
 export function FeedbackReport() {
   const navigate = useNavigate();
@@ -99,6 +106,34 @@ export function FeedbackReport() {
           <FeedbackList title="Strengths" items={strengthsList} tone="positive" />
           <FeedbackList title="Growth Areas" items={growthList} tone="growth" />
         </section>
+
+        {finalReport?.plannedFocusTopics && finalReport.plannedFocusTopics.length > 0 && (
+          <section className="mt-12" aria-labelledby="focus-heading">
+            <h2 id="focus-heading" className="text-lg font-semibold tracking-[-0.02em] text-fg">
+              Planned Focus Topics
+            </h2>
+            <p className="mt-1 text-[13.5px] text-dim">
+              Calculated dynamically based on your curriculum completion and interview performance.
+            </p>
+            <ul className="mt-4 flex flex-wrap gap-2">
+              {finalReport.plannedFocusTopics.map((chip: any) => {
+                const style = signalStyle[chip.signal as keyof typeof signalStyle] || signalStyle.Moderate;
+                return (
+                  <li
+                    key={chip.topic}
+                    className={cn(
+                      'inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[12.5px] font-medium',
+                      style
+                    )}>
+                    <span className="text-fg">{chip.topic}</span>
+                    <span aria-hidden className="h-3 w-px bg-current opacity-30" />
+                    <span>{chip.signal}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
 
         <section className="mt-12" aria-labelledby="review-heading">
           <div className="flex items-end justify-between gap-4">

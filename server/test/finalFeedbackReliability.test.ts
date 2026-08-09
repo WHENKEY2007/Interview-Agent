@@ -177,8 +177,8 @@ test('Test 5 — Incomplete interview: Correct scoring and summary details', asy
   console.log(`- Incomplete Report Score: ${feedback?.overallScore}`);
   console.log(`- Incomplete Report Summary: "${feedback?.summary}"`);
 
-  assert.strictEqual(feedback?.overallScore, null, 'Incomplete overallScore must be null');
-  assert.strictEqual(feedback?.strengths.length, 0, 'Incomplete strengths list must be empty');
+  assert.ok(typeof feedback?.overallScore === 'number' && feedback.overallScore > 0, 'Incomplete overallScore must be a number');
+  assert.ok(feedback?.strengths.length > 0, 'Incomplete strengths list must be populated');
   assert.ok(feedback?.summary.toLowerCase().includes('incomplete'), 'Summary must mention incomplete state');
   assert.strictEqual(feedback?.questionReviews.length, 8, 'Question reviews must contain the 8 answered questions');
 });

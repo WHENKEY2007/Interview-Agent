@@ -24,13 +24,7 @@ export function TopicPerformance() {
   let topicScores = fallbackTopicScores;
   let isNotAssessable = false;
 
-  if (finalReport && (finalReport.overallScore === null || finalReport.overallScore === undefined)) {
-    isNotAssessable = true;
-    topicScores = [];
-  } else if (!finalReport && (!evaluations || evaluations.length === 0)) {
-    isNotAssessable = true;
-    topicScores = [];
-  } else if (finalReport && Array.isArray(finalReport.topicPerformance) && finalReport.topicPerformance.length > 0) {
+  if (finalReport && typeof finalReport.overallScore === 'number' && Array.isArray(finalReport.topicPerformance) && finalReport.topicPerformance.length > 0) {
     topicScores = finalReport.topicPerformance.map((tp: any) => ({
       topic: tp.topic,
       score: tp.score,
@@ -39,7 +33,7 @@ export function TopicPerformance() {
   } else if (evaluations && evaluations.length > 0) {
     const topicMap: Record<string, { totalScore: number; count: number; day: string }> = {};
     evaluations.forEach((e: any) => {
-      const sc = e.status === 'Strong' ? 91 : e.status === 'Good' ? 78 : 62;
+      const sc = e.score ?? (e.status === 'Strong' ? 91 : e.status === 'Good' ? 78 : 62);
       if (!topicMap[e.topic]) {
         topicMap[e.topic] = { totalScore: 0, count: 0, day: e.day };
       }
@@ -52,6 +46,9 @@ export function TopicPerformance() {
       score: Math.round(data.totalScore / data.count),
       day: data.day
     }));
+  } else {
+    isNotAssessable = true;
+    topicScores = [];
   }
 
   return (

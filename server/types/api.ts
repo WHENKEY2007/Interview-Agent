@@ -26,4 +26,14 @@ export interface InterviewResponse {
   followUpsAsked?: number;
   clarifyUsed?: boolean;
   evaluations?: AnswerEvaluation[];
+  progress?: {
+    questionNumber: number;
+    totalQuestions: number;
+    questionsAsked: number;
+    daysCovered: number;
+    requiredDays: number;
+    currentDay: number;
+    currentTopic: string;
+    difficulty: string;
+  };
 }

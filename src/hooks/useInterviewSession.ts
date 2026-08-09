@@ -87,10 +87,10 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
       if (!activeCandidate) {
         setActiveCandidate(candidateToUse);
       }
-
+ 
       setEvaluating(true);
       setErrorState(null);
-
+ 
       try {
         // Try restoring session if activeId exists
         if (activeId) {
@@ -103,7 +103,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
               setCurrentTopic(sessionData.currentTopic || 'RAG');
               setCurrentQuestionDay(sessionData.currentQuestionDay || 12);
               setCurrentDifficulty(sessionData.currentQuestionDifficulty || 'Intermediate');
-              setQuestionNumber(sessionData.primaryQuestionsAsked || 1);
+              setQuestionNumber(sessionData.questionsAsked || 1);
               setClarifyUsed(sessionData.clarifyUsed || false);
               setEvaluations(sessionData.evaluations || []);
               setSeconds(sessionData.durationSeconds || 0);
@@ -112,11 +112,11 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
             }
           }
         }
-
+ 
         // Initialize fresh session
         const newSessionId = 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
         setSessionId(newSessionId);
-
+ 
         const res = await fetch('/api/interview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -125,17 +125,25 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
             candidate: candidateToUse
           })
         });
-
+ 
         if (!res.ok) {
           throw new Error(`Server returned HTTP ${res.status}`);
         }
-
+ 
         const data = await res.json();
         setTurns(data.turns || []);
-        setCurrentTopic(data.currentTopic || 'RAG');
-        setCurrentQuestionDay(data.currentQuestionDay || 12);
-        setCurrentDifficulty(data.currentQuestionDifficulty || 'Intermediate');
-        setQuestionNumber(data.primaryQuestionsAsked || 1);
+        if (data.progress) {
+          setQuestionNumber(data.progress.questionNumber);
+          setTotalQuestions(data.progress.totalQuestions);
+          setCurrentTopic(data.progress.currentTopic);
+          setCurrentQuestionDay(data.progress.currentDay);
+          setCurrentDifficulty(data.progress.difficulty as any);
+        } else {
+          setCurrentTopic(data.currentTopic || 'RAG');
+          setCurrentQuestionDay(data.currentQuestionDay || 12);
+          setCurrentDifficulty(data.currentQuestionDifficulty || 'Intermediate');
+          setQuestionNumber(data.questionsAsked || 1);
+        }
         setClarifyUsed(data.clarifyUsed || false);
         setEvaluations(data.evaluations || []);
       } catch (err: any) {
@@ -145,16 +153,16 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
         setEvaluating(false);
       }
     };
-
+ 
     startOrRestoreSession();
   }, [sessionId, activeCandidate, setSessionId, setActiveCandidate, setEvaluations]);
-
+ 
   const submitAnswer = useCallback(
     async (text: string) => {
       if (evaluating) return; // Prevent duplicate submissions
       setEvaluating(true);
       setErrorState(null);
-
+ 
       // Instantly append user message to UI for smooth responsiveness without duplicate turns on retry
       const candidateTurnId = `local-${Date.now()}`;
       setTurns((prev) => {
@@ -164,10 +172,10 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
         }
         return [...prev, { id: candidateTurnId, role: 'candidate', text }];
       });
-
+ 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 40000); // 40 seconds timeout
-
+ 
       try {
         const res = await fetch('/api/interview', {
           method: 'POST',
@@ -179,13 +187,13 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
           signal: controller.signal
         });
         clearTimeout(timeoutId);
-
+ 
         if (!res.ok) {
           throw new Error(`Server error (${res.status}). Failed to process response.`);
         }
-
+ 
         const data = await res.json();
-
+ 
         // Check if backend session is done
         if (data.done) {
           setFinalReport(data.feedback);
@@ -196,7 +204,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
           const questionsCount = (data.evaluations || []).length || 8;
           
           setResult({ durationSeconds: duration, answered: questionsCount, followUps: followUpsNum });
-
+ 
           // Save completed session to history
           const candName = activeCandidate?.member?.name || activeCandidate?.name || 'Candidate';
           const candRole = activeCandidate?.member?.jobRole || 'Software Engineer';
@@ -214,11 +222,11 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
             evaluations: data.evaluations || []
           };
           addCompletedSession(sessionItem);
-
+ 
           onComplete({ durationSeconds: duration, answered: questionsCount, followUps: followUpsNum });
           return;
         }
-
+ 
         // Check if there is a topic/day shift to run the TopicTransition overlay
         if (data.currentTopic && data.currentTopic !== currentTopic) {
           setTransition({
@@ -226,24 +234,40 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
             to: data.currentTopic,
             line: topicTransitionCopy[data.currentTopic] ?? 'Let’s move on to the next area.'
           });
-
+ 
           schedule(() => {
             setTransition(null);
             setTurns(data.turns || []);
-            setCurrentTopic(data.currentTopic);
-            setCurrentQuestionDay(data.currentQuestionDay);
-            setCurrentDifficulty(data.currentQuestionDifficulty);
-            setQuestionNumber(data.primaryQuestionsAsked || 1);
+            if (data.progress) {
+              setQuestionNumber(data.progress.questionNumber);
+              setTotalQuestions(data.progress.totalQuestions);
+              setCurrentTopic(data.progress.currentTopic);
+              setCurrentQuestionDay(data.progress.currentDay);
+              setCurrentDifficulty(data.progress.difficulty as any);
+            } else {
+              setCurrentTopic(data.currentTopic);
+              setCurrentQuestionDay(data.currentQuestionDay);
+              setCurrentDifficulty(data.currentQuestionDifficulty);
+              setQuestionNumber(data.questionsAsked || 1);
+            }
             setClarifyUsed(data.clarifyUsed);
             setEvaluations(data.evaluations || []);
           }, 2600);
         } else {
           // Normal turn sync
           setTurns(data.turns || []);
-          setCurrentTopic(data.currentTopic);
-          setCurrentQuestionDay(data.currentQuestionDay);
-          setCurrentDifficulty(data.currentQuestionDifficulty);
-          setQuestionNumber(data.primaryQuestionsAsked || 1);
+          if (data.progress) {
+            setQuestionNumber(data.progress.questionNumber);
+            setTotalQuestions(data.progress.totalQuestions);
+            setCurrentTopic(data.progress.currentTopic);
+            setCurrentQuestionDay(data.progress.currentDay);
+            setCurrentDifficulty(data.progress.difficulty as any);
+          } else {
+            setCurrentTopic(data.currentTopic);
+            setCurrentQuestionDay(data.currentQuestionDay);
+            setCurrentDifficulty(data.currentQuestionDifficulty);
+            setQuestionNumber(data.questionsAsked || 1);
+          }
           setClarifyUsed(data.clarifyUsed);
           setEvaluations(data.evaluations || []);
         }
@@ -259,12 +283,12 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
     },
     [sessionId, currentTopic, evaluating, onComplete, seconds, setFinalReport, setResult, setEvaluations, addCompletedSession, activeCandidate]
   );
-
+ 
   const askClarification = useCallback(async () => {
     if (clarifyUsed || evaluating) return;
     setEvaluating(true);
     setErrorState(null);
-
+ 
     try {
       const res = await fetch('/api/interview', {
         method: 'POST',
@@ -274,13 +298,20 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
           message: '[CLARIFY]'
         })
       });
-
+ 
       if (!res.ok) throw new Error('Clarification request failed.');
-
+ 
       const data = await res.json();
       setTurns(data.turns || []);
       setClarifyUsed(data.clarifyUsed);
       setEvaluations(data.evaluations || []);
+      if (data.progress) {
+        setQuestionNumber(data.progress.questionNumber);
+        setTotalQuestions(data.progress.totalQuestions);
+        setCurrentTopic(data.progress.currentTopic);
+        setCurrentQuestionDay(data.progress.currentDay);
+        setCurrentDifficulty(data.progress.difficulty as any);
+      }
     } catch (err) {
       console.error('Error asking for clarification:', err);
       setErrorState('Could not fetch question clarification. Please try again.');

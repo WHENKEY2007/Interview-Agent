@@ -57,6 +57,8 @@ export async function startInterview(sessionId: string, candidateData: any): Pro
   // Generate primary question
   const questionObj = await generatePrimaryQuestion(candidate, day, plan.targetDifficulty, []);
 
+  const qId = `turn-${Date.now()}-q`;
+
   // Update session state
   session.currentTopic = day.title;
   session.currentQuestion = questionObj.question;
@@ -68,10 +70,13 @@ export async function startInterview(sessionId: string, candidateData: any): Pro
   session.currentTopicDepth = 0;
   session.currentQuestionType = 'primary';
   session.currentQuestionDifficulty = plan.targetDifficulty;
+  session.currentQuestionId = qId;
+  session.currentQuestionObjective = questionObj.objective;
+  session.currentQuestionNumber = 1;
 
   // Record turn
   const turn: InterviewTurn = {
-    id: `turn-${Date.now()}-q`,
+    id: qId,
     role: 'interviewer',
     text: questionObj.question,
     topic: day.title,
@@ -210,12 +215,23 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
   const startTotal = Date.now();
   const startEval = Date.now();
   const day = getCurriculumDay(session.currentQuestionDay)!;
-  const evalResult = await evaluateAnswer(session.currentQuestion, message, day);
+
+  // Build conversational context relevant to the question
+  const topicTurns = session.turns.filter(t => t.topic === session.currentTopic);
+  const previousContext = topicTurns.map(t => `${t.role === 'interviewer' ? 'Interviewer' : 'Candidate'}: ${t.text}`).join('\n');
+
+  const evalResult = await evaluateAnswer(
+    session.currentQuestion,
+    message,
+    day,
+    session.currentQuestionObjective || day.objectives[0] || '',
+    previousContext
+  );
   const evalDuration = Date.now() - startEval;
 
   // Record evaluation item
   const evalItem: AnswerEvaluation = {
-    id: `eval-${Date.now()}`,
+    id: session.currentQuestionId || `eval-${Date.now()}`,
     topic: session.currentTopic,
     day: `Day ${session.currentQuestionDay}`,
     status: evalResult.quality === 'strong' ? 'Strong' : evalResult.quality === 'partial' ? 'Good' : 'Needs Improvement',
@@ -224,7 +240,14 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
     evaluation: evalResult.evaluation,
     strengths: evalResult.strengths,
     improvements: evalResult.gaps,
-    betterAnswer: evalResult.betterAnswerStructure
+    betterAnswer: evalResult.betterAnswerStructure,
+    questionId: session.currentQuestionId || `q-${Date.now()}`,
+    questionNumber: session.currentQuestionNumber || session.questionsAsked,
+    objective: session.currentQuestionObjective || day.objectives[0] || '',
+    difficulty: session.currentQuestionDifficulty,
+    questionType: session.currentQuestionType,
+    score: evalResult.score,
+    metrics: evalResult.metrics
   };
   session.evaluations.push(evalItem);
   session.questionsAnswered += 1;
@@ -262,7 +285,7 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
   console.log(`Strategy: ${decision.strategy}`);
   console.log('\n[Progress]');
   console.log(`Questions: ${session.questionsAsked}/8+ (max 10)`);
-  console.log(`Days covered: ${session.curriculumDaysCovered.length}/4+\n`);
+  console.log(`Days covered: ${new Set(session.curriculumDaysCovered).size}/4+\n`);
 
   if (decision.shouldFollowUp && session.questionsAsked < 10) {
     // 1. Gather all previously asked questions to prevent repetitions in follow-ups
@@ -302,9 +325,13 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
     session.currentQuestionDifficulty = nextDifficulty;
     session.currentQuestionType = 'followup';
 
+    const nextQId = `turn-${Date.now()}-f`;
+    session.currentQuestionId = nextQId;
+    session.currentQuestionNumber = session.questionsAsked;
+
     // Record turn
     session.turns.push({
-      id: `turn-${Date.now()}-f`,
+      id: nextQId,
       role: 'interviewer',
       text: followUp.text,
       badge: followUp.badge,
@@ -321,14 +348,16 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
       done: false
     };
   } else {
-    // Determine whether completion criteria are met
-    const coveredDaysCount = session.curriculumDaysCovered.length;
+    // Determine whether completion criteria are met (unique days count check)
+    const uniqueDaysCovered = new Set(session.curriculumDaysCovered);
+    const coveredDaysCount = uniqueDaysCovered.size;
     const meetsQuestionsConstraint = session.questionsAsked >= MIN_INTERVIEW_QUESTIONS;
     const meetsDaysConstraint = coveredDaysCount >= MIN_CURRICULUM_DAYS;
     const reachedMaxQuestions = session.questionsAsked >= MAX_INTERVIEW_QUESTIONS;
 
     if ((meetsQuestionsConstraint && meetsDaysConstraint) || reachedMaxQuestions) {
       session.status = 'COMPLETED';
+      session.completedAt = Date.now();
       
       const startGen = Date.now();
       const finalReport = await generateFinalFeedback(session);
@@ -406,9 +435,14 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
       session.clarifyUsed = false;
       session.currentQuestionDifficulty = targetDiff;
 
+      const nextQId = `turn-${Date.now()}-q`;
+      session.currentQuestionId = nextQId;
+      session.currentQuestionObjective = questionObj.objective;
+      session.currentQuestionNumber = session.questionsAsked;
+
       // Record interviewer turn
       session.turns.push({
-        id: `turn-${Date.now()}-q`,
+        id: nextQId,
         role: 'interviewer',
         text: finalQuestion,
         topic: nextDay.title,

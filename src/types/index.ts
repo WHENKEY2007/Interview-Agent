@@ -68,6 +68,19 @@ export interface QuestionReviewItem {
   strengths: string[];
   improvements: string[];
   betterAnswer: string[];
+  questionId?: string;
+  questionNumber?: number;
+  objective?: string;
+  difficulty?: string;
+  questionType?: 'primary' | 'followup';
+  score?: number;
+  metrics?: {
+    technical: number;
+    problemSolving: number;
+    communication: number;
+    depth: number;
+    practical: number;
+  };
 }
 
 export interface NextStep {
@@ -129,4 +142,6 @@ export interface FinalFeedbackReport {
   topicPerformance: TopicPerformanceItem[];
   questionReviews: QuestionReviewItem[];
   recommendations: string[];
+  metrics?: Array<{ label: string; score: number; note: string }>;
+  plannedFocusTopics?: Array<{ topic: string; signal: 'Strong' | 'Moderate' | 'Needs Practice' }>;
 }

@@ -164,35 +164,49 @@ export async function generateContent(
 
       return JSON.stringify({
         summary,
-        overallScore: isIncomplete ? null : overallScore,
-        technicalScore: isIncomplete ? null : Math.min(100, overallScore + 2),
-        depthScore: isIncomplete ? null : Math.max(0, overallScore - 4),
-        communicationScore: isIncomplete ? null : Math.min(100, overallScore + 4),
-        strengths: isIncomplete ? [] : strengths,
-        gaps: isIncomplete ? [] : gaps,
+        overallScore: overallScore,
+        technicalScore: Math.min(100, overallScore + 2),
+        depthScore: Math.max(0, overallScore - 4),
+        communicationScore: Math.min(100, overallScore + 4),
+        strengths: strengths,
+        gaps: gaps,
         topicPerformance,
-        next: isIncomplete ? [] : next
+        next,
+        metrics: [
+          { label: 'Technical Understanding', score: Math.min(100, overallScore + 2), note: 'Accurate concepts, correct terminology' },
+          { label: 'Problem Solving', score: overallScore, note: 'Structured diagnosis, logical resolution' },
+          { label: 'Communication', score: Math.min(100, overallScore + 4), note: 'Clear narrative structure, easy to follow' },
+          { label: 'Depth of Explanation', score: Math.max(0, overallScore - 4), note: 'Explains trade-offs and implementation detail' },
+          { label: 'Practical Application', score: Math.min(100, overallScore), note: 'Connects concepts back to concrete tools' }
+        ],
+        plannedFocusTopics: [
+          { topic: 'RAG', signal: 'Strong' },
+          { topic: 'Vector Databases', signal: 'Strong' },
+          { topic: 'Prompt Engineering', signal: 'Moderate' },
+          { topic: 'Agentic AI', signal: 'Needs Practice' },
+          { topic: 'MCP', signal: 'Needs Practice' }
+        ]
       });
     }
-
+ 
     // 3. Answer Evaluation Request
     if (jsonMode && (promptLower.includes('candidate answer') || systemLower.includes('evaluation substance rules'))) {
       let answer = 'Candidate answer';
       let topic = 'General topic';
-
+ 
       const aMatch = prompt.match(/Candidate Answer:\s*"([^"]+)"/i);
       if (aMatch) answer = aMatch[1].trim();
-
+ 
       const tMatch = prompt.match(/Curriculum Topic:\s*"([^"]+)"/i);
       if (tMatch) topic = tMatch[1].trim();
-
+ 
       let score = 85;
       let quality = 'strong';
       let evaluation = `Demonstrated strong conceptual mastery of ${topic}. Answered: "${answer.slice(0, 25)}..."`;
       let strengths = [`Knowledge of ${topic}`];
       let gaps: string[] = [];
       let misconceptions: string[] = [];
-
+ 
       const answerLower = answer.toLowerCase();
       if (answerLower.includes("don't know") || answerLower.includes("don't recall") || answerLower.includes("no idea") || answerLower.includes("uncertain") || answerLower.includes("skip")) {
         score = 0;
@@ -218,7 +232,7 @@ export async function generateContent(
         strengths = [`Basic concept of ${topic}`];
         gaps = [`Advanced trade-offs for ${topic}`];
       }
-
+ 
       return JSON.stringify({
         score,
         quality,
@@ -230,33 +244,44 @@ export async function generateContent(
           `Define the core mechanism of ${topic}`,
           `Explain the specific implementation steps`,
           `Discuss trade-offs of this approach`
-        ]
+        ],
+        metrics: {
+          technical: score,
+          problemSolving: Math.max(0, Math.min(100, Math.round(score * 0.98))),
+          communication: Math.max(0, Math.min(100, Math.round(score * 1.04))),
+          depth: Math.max(0, Math.min(100, Math.round(score * 0.92))),
+          practical: Math.max(0, Math.min(100, Math.round(score * 0.95)))
+        }
       });
     }
-
+ 
     // 3.5. JSON Question / Primary generation fallback
     if (jsonMode) {
       if (promptLower.includes('day 12') || promptLower.includes('prompt engineering') || promptLower.includes('fundamentals')) {
         return JSON.stringify({
           question: "How do you ensure JSON format compliance in LLM outputs?",
-          intent: "conceptual"
+          intent: "conceptual",
+          objective: "Understand how to implement schema validation."
         });
       }
       if (promptLower.includes('day 14') || promptLower.includes('rag')) {
         return JSON.stringify({
           question: "How do you debug generation inaccuracies in a RAG pipeline?",
-          intent: "debugging"
+          intent: "debugging",
+          objective: "Debug chunk queries and retrieval precision."
         });
       }
       if (promptLower.includes('day 8') || promptLower.includes('indexing') || promptLower.includes('vector')) {
         return JSON.stringify({
           question: "How do you choose between HNSW and IVF indexes for 40M vectors?",
-          intent: "tradeoff"
+          intent: "tradeoff",
+          objective: "Understand similarity search indices and metrics."
         });
       }
       return JSON.stringify({
         question: "How would you set up a dual-encoder retrieval pipeline for RAG?",
-        intent: "conceptual"
+        intent: "conceptual",
+        objective: "Explain dual-encoder setup."
       });
     }
 
