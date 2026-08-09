@@ -2,14 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { loadData } from './data/dataLoader';
 import interviewRouter from './routes/interview';
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -39,7 +35,7 @@ app.get('/health', (req, res) => {
 });
 
 // Serve static assets from React client in production
-const distPath = path.join(__dirname, '../dist');
+const distPath = path.join(process.cwd(), 'dist');
 app.use(express.static(distPath));
 
 // Wildcard route to handle React Router navigation
