@@ -3,16 +3,15 @@ import { motion } from 'framer-motion';
 import { CornerDownRightIcon, LayersIcon, TrendingUpIcon } from 'lucide-react';
 import { InterviewTurn } from '../../types';
 import { Badge } from '../ui/Badge';
+import { BrandIcon } from '../ui/Logo';
 
 function InterviewerMark() {
   return (
     <span
       aria-hidden
       className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-[#2E3168] bg-[#151834]">
-      
-      <span className="h-2 w-2 rounded-full bg-accent" />
+      <BrandIcon />
     </span>);
-
 }
 
 const badgeIcon: Record<string, React.ReactNode> = {

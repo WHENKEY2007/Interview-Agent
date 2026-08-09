@@ -8,23 +8,45 @@ import { validateQuestion, repairQuestion } from './validation';
  * Generates a fallback follow-up question when generation or validation fails.
  * Checks against previous questions to avoid duplicates.
  */
-export function getDefaultFallbackFollowUp(strategy: string, previousQuestions: string[] = []): string {
-  const options = [];
-  if (strategy === 'redirect') {
-    options.push("Let's stay focused on today's curriculum. Can you explain your choice of architecture here?");
-    options.push("Let's bring it back to the core objectives. How does this system handle data updates?");
-  } else if (strategy === 'challenge') {
-    options.push("What main latency or scale trade-offs would you consider in this setup?");
-    options.push("How does your solution scale when database operations grow by ten times?");
-  } else {
-    options.push("How would you handle failure recovery or edge cases in that step?");
-    options.push("What monitoring metrics would you collect to ensure this step is performing well?");
+export function getDefaultFallbackFollowUp(
+  strategy: string,
+  day?: CurriculumDay | string[],
+  previousQuestions: string[] = []
+): string {
+  let actualPreviousQuestions = previousQuestions;
+  let actualDay: CurriculumDay | undefined = undefined;
+
+  if (day) {
+    if (Array.isArray(day)) {
+      actualPreviousQuestions = day;
+    } else {
+      actualDay = day as CurriculumDay;
+    }
   }
-  options.push("Could you elaborate on the specific tools and libraries you would use here?");
+
+  const options = [];
+  const topic = actualDay ? actualDay.title : "the curriculum topic";
+
+  if (strategy === 'redirect') {
+    options.push(`Let's stay focused on today's curriculum topic: ${topic}. Can you explain your choice of architecture here?`);
+    options.push(`Let's bring it back to the core objectives of ${topic}. How does your system handle data updates?`);
+    options.push(`How would you align this setup with the primary objectives of ${topic} in a production pipeline?`);
+  } else if (strategy === 'challenge') {
+    options.push(`What main latency or scale trade-offs would you consider when deploying ${topic} in production?`);
+    options.push(`How does your ${topic} solution scale when database operations grow by ten times?`);
+    options.push(`What are the computational or memory bottlenecks of this ${topic} approach?`);
+    options.push(`How do you optimize resource utilization (like memory or connection pools) for ${topic}?`);
+  } else {
+    options.push(`How would you handle failure recovery or edge cases when implementing ${topic}?`);
+    options.push(`What monitoring metrics would you collect to ensure ${topic} is performing well in production?`);
+    options.push(`Could you elaborate on the specific tools and libraries you would use for ${topic} here?`);
+    options.push(`What validation checks or tests would you run to verify the correctness of this ${topic} step?`);
+    options.push(`How does your proposed implementation for ${topic} handle concurrency or multi-user load?`);
+  }
 
   // Find the first one that is not duplicate (similarity < 0.8)
   for (const q of options) {
-    const isDup = previousQuestions.some(prev => {
+    const isDup = actualPreviousQuestions.some(prev => {
       const stopwords = new Set(['what', 'how', 'why', 'is', 'are', 'the', 'a', 'to', 'for', 'in', 'on', 'with', 'and', 'or', 'you', 'your']);
       const w1 = new Set(q.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2 && !stopwords.has(w)));
       const w2 = new Set(prev.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2 && !stopwords.has(w)));
@@ -37,8 +59,8 @@ export function getDefaultFallbackFollowUp(strategy: string, previousQuestions: 
     }
   }
 
-  const idx = previousQuestions.length;
-  return `What is the primary technical trade-off of this approach in question ${idx}?`;
+  const idx = actualPreviousQuestions.length;
+  return `What is the primary technical trade-off of this ${topic} approach in question ${idx}?`;
 }
 
 /**
@@ -107,7 +129,7 @@ STRATEGY-SPECIFIC BEHAVIOR:
         cleaned = repaired;
       } else {
         console.warn(`[FollowUp] Repaired follow-up still failed: ${reValidation.reason}. Using fallback.`);
-        cleaned = getDefaultFallbackFollowUp(strategy, previousQuestions);
+        cleaned = getDefaultFallbackFollowUp(strategy, day, previousQuestions);
       }
     }
 
@@ -141,7 +163,7 @@ STRATEGY-SPECIFIC BEHAVIOR:
   } catch (error) {
     console.error('[FollowUp] Error generating follow-up. Returning fallback.', error);
     return {
-      text: getDefaultFallbackFollowUp(strategy, previousQuestions),
+      text: getDefaultFallbackFollowUp(strategy, day, previousQuestions),
       badge: 'Follow-up',
       difficultyShift: 'same'
     };
