@@ -2353,9 +2353,20 @@ Keep your clarification friendly, concise, and direct (1-2 sentences). Do NOT ch
 var router = Router();
 router.post("/interview", async (req, res) => {
   try {
-    const { sessionId, candidate, message } = req.body;
+    const { sessionId, candidate, message, sessionState } = req.body;
     if (!sessionId || typeof sessionId !== "string") {
       return res.status(400).json({ error: "Missing or invalid required field: sessionId (must be string)." });
+    }
+    if (sessionState && typeof sessionState === "object") {
+      try {
+        saveSession(sessionId, sessionState);
+        console.log(`[Router] Restored session ${sessionId} from client state`);
+      } catch (restoreError) {
+        console.error(
+          "[Router] Failed to restore client session state:",
+          restoreError
+        );
+      }
     }
     if (candidate !== void 0 || req.body.candidateId !== void 0) {
       let resolvedCandidate = candidate;
@@ -2372,32 +2383,32 @@ router.post("/interview", async (req, res) => {
       }
       console.log(`[Router] Initializing new session ${sessionId} for candidate:`, resolvedCandidate.member.name);
       const reply = await startInterview(sessionId, resolvedCandidate);
-      const sessionState = getSession(sessionId);
-      const uniqueDays = new Set(sessionState.curriculumDaysCovered || []);
+      const sessionState2 = getSession(sessionId);
+      const uniqueDays = new Set(sessionState2.curriculumDaysCovered || []);
       const responsePayload = {
         reply,
         done: false,
-        turns: sessionState.turns,
-        currentTopic: sessionState.currentTopic,
-        currentQuestionDay: sessionState.currentQuestionDay,
-        currentQuestionDifficulty: sessionState.currentQuestionDifficulty,
-        questionsAsked: sessionState.questionsAsked,
-        questionsAnswered: sessionState.questionsAnswered,
-        primaryQuestionsAsked: sessionState.primaryQuestionsAsked,
-        followUpsAsked: sessionState.followUpsAsked,
-        clarifyUsed: sessionState.clarifyUsed,
-        evaluations: sessionState.evaluations,
-        plannedFocusTopics: sessionState.plannedFocusTopics,
+        turns: sessionState2.turns,
+        currentTopic: sessionState2.currentTopic,
+        currentQuestionDay: sessionState2.currentQuestionDay,
+        currentQuestionDifficulty: sessionState2.currentQuestionDifficulty,
+        questionsAsked: sessionState2.questionsAsked,
+        questionsAnswered: sessionState2.questionsAnswered,
+        primaryQuestionsAsked: sessionState2.primaryQuestionsAsked,
+        followUpsAsked: sessionState2.followUpsAsked,
+        clarifyUsed: sessionState2.clarifyUsed,
+        evaluations: sessionState2.evaluations,
+        plannedFocusTopics: sessionState2.plannedFocusTopics,
         progress: {
-          questionNumber: sessionState.questionsAsked,
+          questionNumber: sessionState2.questionsAsked,
           totalQuestions: 10,
-          questionsAsked: sessionState.questionsAsked,
+          questionsAsked: sessionState2.questionsAsked,
           daysCovered: uniqueDays.size,
           requiredDays: 4,
-          currentDay: sessionState.currentQuestionDay,
-          currentTopic: sessionState.currentTopic,
-          difficulty: sessionState.currentQuestionDifficulty,
-          plannedFocusTopics: sessionState.plannedFocusTopics
+          currentDay: sessionState2.currentQuestionDay,
+          currentTopic: sessionState2.currentTopic,
+          difficulty: sessionState2.currentQuestionDifficulty,
+          plannedFocusTopics: sessionState2.plannedFocusTopics
         }
       };
       return res.json(responsePayload);
@@ -2408,31 +2419,31 @@ router.post("/interview", async (req, res) => {
       }
       console.log(`[Router] Received message from session ${sessionId}: "${message.slice(0, 50)}${message.length > 50 ? "..." : ""}"`);
       const result = await handleCandidateMessage(sessionId, message);
-      const sessionState = getSession(sessionId);
-      const uniqueDays = new Set(sessionState.curriculumDaysCovered || []);
+      const sessionState2 = getSession(sessionId);
+      const uniqueDays = new Set(sessionState2.curriculumDaysCovered || []);
       const responsePayload = {
         ...result,
-        turns: sessionState.turns,
-        currentTopic: sessionState.currentTopic,
-        currentQuestionDay: sessionState.currentQuestionDay,
-        currentQuestionDifficulty: sessionState.currentQuestionDifficulty,
-        questionsAsked: sessionState.questionsAsked,
-        questionsAnswered: sessionState.questionsAnswered,
-        primaryQuestionsAsked: sessionState.primaryQuestionsAsked,
-        followUpsAsked: sessionState.followUpsAsked,
-        clarifyUsed: sessionState.clarifyUsed,
-        evaluations: sessionState.evaluations,
-        plannedFocusTopics: sessionState.plannedFocusTopics,
+        turns: sessionState2.turns,
+        currentTopic: sessionState2.currentTopic,
+        currentQuestionDay: sessionState2.currentQuestionDay,
+        currentQuestionDifficulty: sessionState2.currentQuestionDifficulty,
+        questionsAsked: sessionState2.questionsAsked,
+        questionsAnswered: sessionState2.questionsAnswered,
+        primaryQuestionsAsked: sessionState2.primaryQuestionsAsked,
+        followUpsAsked: sessionState2.followUpsAsked,
+        clarifyUsed: sessionState2.clarifyUsed,
+        evaluations: sessionState2.evaluations,
+        plannedFocusTopics: sessionState2.plannedFocusTopics,
         progress: {
-          questionNumber: sessionState.questionsAsked,
+          questionNumber: sessionState2.questionsAsked,
           totalQuestions: 10,
-          questionsAsked: sessionState.questionsAsked,
+          questionsAsked: sessionState2.questionsAsked,
           daysCovered: uniqueDays.size,
           requiredDays: 4,
-          currentDay: sessionState.currentQuestionDay,
-          currentTopic: sessionState.currentTopic,
-          difficulty: sessionState.currentQuestionDifficulty,
-          plannedFocusTopics: sessionState.plannedFocusTopics
+          currentDay: sessionState2.currentQuestionDay,
+          currentTopic: sessionState2.currentTopic,
+          difficulty: sessionState2.currentQuestionDifficulty,
+          plannedFocusTopics: sessionState2.plannedFocusTopics
         }
       };
       return res.json(responsePayload);

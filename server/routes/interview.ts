@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { startInterview, handleCandidateMessage } from '../agent/interviewAgent';
-import { getSession } from '../session/sessionStore';
+import { getSession, saveSession } from '../session/sessionStore';
 import { InterviewResponse } from '../types/api';
 
 const router = Router();
@@ -11,12 +11,28 @@ const router = Router();
  */
 router.post('/interview', async (req: Request, res: Response): Promise<Response> => {
   try {
-    const { sessionId, candidate, message } = req.body;
+    const { sessionId, candidate, message, sessionState } = req.body;
 
     // Strict boundary validation
     if (!sessionId || typeof sessionId !== 'string') {
       return res.status(400).json({ error: 'Missing or invalid required field: sessionId (must be string).' });
     }
+
+    // Restore session state sent by the client.
+    // Required for Vercel serverless deployments because
+    // different requests may run on different instances.
+    if (sessionState && typeof sessionState === 'object') {
+      try {
+        saveSession(sessionId, sessionState);
+        console.log(`[Router] Restored session ${sessionId} from client state`);
+      } catch (restoreError) {
+        console.error(
+          '[Router] Failed to restore client session state:',
+          restoreError
+        );
+      }
+    }
+    
 
     // Case 1: Start Interview (has candidate data or candidateId)
     if (candidate !== undefined || req.body.candidateId !== undefined) {
@@ -43,6 +59,7 @@ router.post('/interview', async (req: Request, res: Response): Promise<Response>
       const responsePayload: any = {
         reply,
         done: false,
+        sessionState,
         turns: sessionState.turns,
         currentTopic: sessionState.currentTopic,
         currentQuestionDay: sessionState.currentQuestionDay,
@@ -82,6 +99,7 @@ router.post('/interview', async (req: Request, res: Response): Promise<Response>
       const uniqueDays = new Set(sessionState.curriculumDaysCovered || []);
       const responsePayload: any = {
         ...result,
+        sessionState,
         turns: sessionState.turns,
         currentTopic: sessionState.currentTopic,
         currentQuestionDay: sessionState.currentQuestionDay,

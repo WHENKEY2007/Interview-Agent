@@ -33,6 +33,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
   const [seconds, setSeconds] = useState(0);
   const [errorState, setErrorState] = useState<string | null>(null);
   const [plannedFocusTopics, setPlannedFocusTopics] = useState<any[]>([]);
+  const [serverSession, setServerSession] = useState<any | null>(null);
 
   const timers = useRef<number[]>([]);
   const initialized = useRef<boolean>(false);
@@ -133,6 +134,9 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
         }
  
         const data = await res.json();
+        if (data.sessionState) {
+          setServerSession(data.sessionState);
+        }
         setTurns(data.turns || []);
         if (data.progress) {
           setQuestionNumber(data.progress.questionNumber);
@@ -186,7 +190,8 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             sessionId,
-            message: text
+            message: text,
+            sessionState: serverSession
           }),
           signal: controller.signal
         });
@@ -197,6 +202,9 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
         }
  
         const data = await res.json();
+        if (data.sessionState) {
+          setServerSession(data.sessionState);
+        }
  
         // Check if backend session is done
         if (data.done) {
@@ -285,7 +293,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
         setEvaluating(false);
       }
     },
-    [sessionId, currentTopic, evaluating, onComplete, seconds, setFinalReport, setResult, setEvaluations, addCompletedSession, activeCandidate]
+    [sessionId, currentTopic, evaluating, onComplete, seconds, setFinalReport, setResult, setEvaluations, addCompletedSession, activeCandidate, serverSession]
   );
  
   const askClarification = useCallback(async () => {
@@ -299,13 +307,17 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId,
-          message: '[CLARIFY]'
+          message: '[CLARIFY]',
+          sessionState: serverSession
         })
       });
  
       if (!res.ok) throw new Error('Clarification request failed.');
  
       const data = await res.json();
+      if (data.sessionState) {
+        setServerSession(data.sessionState);
+      }
       setTurns(data.turns || []);
       setClarifyUsed(data.clarifyUsed);
       setEvaluations(data.evaluations || []);
@@ -322,7 +334,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
     } finally {
       setEvaluating(false);
     }
-  }, [clarifyUsed, evaluating, sessionId, setEvaluations]);
+  }, [clarifyUsed, evaluating, sessionId, setEvaluations, serverSession]);
 
   const endEarly = useCallback(async () => {
     if (evaluating) return;
@@ -335,13 +347,17 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId,
-          message: '[END_EARLY]'
+          message: '[END_EARLY]',
+          sessionState: serverSession
         })
       });
 
       if (!res.ok) throw new Error('End early request failed.');
 
       const data = await res.json();
+      if (data.sessionState) {
+        setServerSession(data.sessionState);
+      }
       if (data.done) {
         setFinalReport(data.feedback);
         setEvaluations(data.evaluations || []);
@@ -378,7 +394,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
     } finally {
       setEvaluating(false);
     }
-  }, [evaluating, sessionId, onComplete, seconds, setFinalReport, setResult, setEvaluations, addCompletedSession, activeCandidate]);
+  }, [evaluating, sessionId, onComplete, seconds, setFinalReport, setResult, setEvaluations, addCompletedSession, activeCandidate, serverSession]);
 
   const question = {
     topic: currentTopic,
