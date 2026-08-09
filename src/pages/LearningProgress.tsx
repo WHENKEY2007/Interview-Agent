@@ -21,7 +21,7 @@ export function LearningProgress() {
   const queryParams = new URLSearchParams(location.search);
   const selectedTopic = queryParams.get('topic'); // e.g. 'module-4'
 
-  const candidate = activeCandidate || candidatesData.candidates[0];
+  const candidate = (activeCandidate || candidatesData.candidates[0]) as any;
   const curriculumTopics = getCurriculumCoverage(candidate);
   const candName = candidate.member?.name || candidate.name || 'Candidate';
 
