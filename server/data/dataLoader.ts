@@ -1,5 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export interface CandidateProfile {
   member: {
@@ -47,8 +51,8 @@ let candidates: CandidateProfile[] = [];
 
 export function loadData() {
   try {
-    const curriculumPath = path.resolve('data/curriculum.json');
-    const candidatesPath = path.resolve('data/candidates.json');
+    const curriculumPath = path.join(__dirname, '../../data/curriculum.json');
+    const candidatesPath = path.join(__dirname, '../../data/candidates.json');
 
     const curriculumRaw = fs.readFileSync(curriculumPath, 'utf8');
     const candidatesRaw = fs.readFileSync(candidatesPath, 'utf8');
