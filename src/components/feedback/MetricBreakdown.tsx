@@ -9,8 +9,12 @@ export function MetricBreakdown() {
   const { finalReport, evaluations } = useSession();
   
   let metricScores = fallbackMetricScores;
+  let isNotAssessable = false;
 
-  if (finalReport && typeof finalReport.technicalScore === 'number') {
+  if (finalReport && Array.isArray(finalReport.metrics) && finalReport.metrics.length > 0) {
+    metricScores = finalReport.metrics;
+    isNotAssessable = false;
+  } else if (finalReport && typeof finalReport.technicalScore === 'number') {
     const tech = finalReport.technicalScore;
     const depth = finalReport.depthScore ?? Math.max(0, Math.round(tech * 0.90));
     const comm = finalReport.communicationScore ?? Math.min(100, Math.round(tech * 1.04));
@@ -24,10 +28,11 @@ export function MetricBreakdown() {
       { label: 'Depth of Explanation', score: depth, note: 'Explains trade-offs and implementation detail' },
       { label: 'Practical Application', score: practical, note: 'Connects concepts back to concrete tools' }
     ];
+    isNotAssessable = false;
   } else if (evaluations && evaluations.length > 0) {
     // Average score of the individual evaluations
     const baseScore = Math.round(evaluations.reduce((sum, e) => {
-      const sc = e.status === 'Strong' ? 91 : e.status === 'Good' ? 78 : 62;
+      const sc = e.score ?? (e.status === 'Strong' ? 91 : e.status === 'Good' ? 78 : 62);
       return sum + sc;
     }, 0) / evaluations.length);
 
@@ -37,6 +42,16 @@ export function MetricBreakdown() {
       { label: 'Communication', score: Math.min(100, Math.round(baseScore * 1.05)), note: 'Clear narrative structure, easy to follow' },
       { label: 'Depth of Explanation', score: Math.max(0, Math.round(baseScore * 0.90)), note: 'Explains trade-offs and implementation detail' },
       { label: 'Practical Application', score: Math.min(100, Math.round(baseScore * 0.95)), note: 'Connects concepts back to concrete tools' }
+    ];
+    isNotAssessable = false;
+  } else {
+    isNotAssessable = true;
+    metricScores = [
+      { label: 'Technical Understanding', score: 0, note: 'Accurate concepts, correct terminology' },
+      { label: 'Problem Solving', score: 0, note: 'Structured diagnosis, logical resolution' },
+      { label: 'Communication', score: 0, note: 'Clear narrative structure, easy to follow' },
+      { label: 'Depth of Explanation', score: 0, note: 'Explains trade-offs and implementation detail' },
+      { label: 'Practical Application', score: 0, note: 'Connects concepts back to concrete tools' }
     ];
   }
 
@@ -49,9 +64,9 @@ export function MetricBreakdown() {
         <li key={m.label}>
             <div className="flex items-baseline justify-between gap-4">
               <p className="text-[13.5px] font-medium text-fg">{m.label}</p>
-              <p className="font-mono text-[13px] text-sub">{m.score}</p>
+              <p className="font-mono text-[13px] text-sub">{isNotAssessable ? 'N/A' : m.score}</p>
             </div>
-            <ProgressBar value={m.score} tone={scoreTone(m.score)} delay={0.1 + i * 0.08} className="mt-2" label={m.label} />
+            <ProgressBar value={isNotAssessable ? 0 : m.score} tone={isNotAssessable ? 'neutral' : scoreTone(m.score)} delay={0.1 + i * 0.08} className="mt-2" label={m.label} />
             <p className="mt-1.5 text-2xs text-dim">{m.note}</p>
           </li>
         )}

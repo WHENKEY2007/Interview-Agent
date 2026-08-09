@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { BrandIcon } from '../ui/Logo';
 
 export function EvaluatingIndicator() {
   return (
@@ -15,11 +16,13 @@ export function EvaluatingIndicator() {
         aria-hidden
         className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-[#2E3168] bg-[#151834]">
         
-        <motion.span
-          className="h-2 w-2 rounded-full bg-accent"
-          animate={{ opacity: [1, 0.3, 1], scale: [1, 0.8, 1] }}
-          transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }} />
-        
+        <motion.div
+          animate={{ opacity: [1, 0.3, 1] }}
+          transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+          className="flex items-center justify-center"
+        >
+          <BrandIcon />
+        </motion.div>
       </span>
       <div className="flex items-center gap-2">
         <span className="text-[13.5px] text-sub">AI Interviewer is evaluating your response</span>

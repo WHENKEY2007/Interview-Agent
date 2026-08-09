@@ -27,23 +27,31 @@ export function FeedbackList({ title, items, tone }: FeedbackListProps) {
         <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-sub">{title}</h3>
       </div>
 
-      <ul className="mt-4 space-y-3">
-        {items.map((item, i) =>
-        <motion.li
-          key={item}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.05 * i }}
-          className="flex gap-2.5 text-[13.5px] leading-relaxed text-sub">
-          
-            <span
-            aria-hidden
-            className={cn('mt-[7px] h-1 w-1 shrink-0 rounded-full', positive ? 'bg-[#4ADE80]' : 'bg-[#FBBF24]')} />
-          
-            {item}
-          </motion.li>
-        )}
-      </ul>
+      {items.length === 0 ? (
+        <p className="mt-4 text-[13.5px] leading-relaxed text-dim">
+          {tone === 'positive' 
+            ? "No strengths identified because there were no candidate responses." 
+            : "No technical growth areas can be assessed without candidate responses."}
+        </p>
+      ) : (
+        <ul className="mt-4 space-y-3">
+          {items.map((item, i) => (
+            <motion.li
+              key={item}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, delay: 0.05 * i }}
+              className="flex gap-2.5 text-[13.5px] leading-relaxed text-sub"
+            >
+              <span
+                aria-hidden
+                className={cn('mt-[7px] h-1 w-1 shrink-0 rounded-full', positive ? 'bg-[#4ADE80]' : 'bg-[#FBBF24]')}
+              />
+              {item}
+            </motion.li>
+          ))}
+        </ul>
+      )}
     </Panel>);
 
 }

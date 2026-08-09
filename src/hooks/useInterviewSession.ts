@@ -9,7 +9,7 @@ interface TransitionState {
   line: string;
 }
 
-export function useInterviewSession(onComplete: (result: { durationSeconds: number; followUps: number }) => void) {
+export function useInterviewSession(onComplete: (result: { durationSeconds: number; answered: number; followUps: number }) => void) {
   const { 
     sessionId, 
     setSessionId, 
@@ -32,6 +32,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
   const [transition, setTransition] = useState<TransitionState | null>(null);
   const [seconds, setSeconds] = useState(0);
   const [errorState, setErrorState] = useState<string | null>(null);
+  const [plannedFocusTopics, setPlannedFocusTopics] = useState<any[]>([]);
 
   const timers = useRef<number[]>([]);
   const initialized = useRef<boolean>(false);
@@ -59,7 +60,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
     initialized.current = true;
 
     const startOrRestoreSession = async () => {
-      let activeId = sessionId;
+      const activeId = sessionId;
       const candidateToUse = activeCandidate || {
         member: {
           id: 'CAND-001',
@@ -87,10 +88,10 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
       if (!activeCandidate) {
         setActiveCandidate(candidateToUse);
       }
-
+ 
       setEvaluating(true);
       setErrorState(null);
-
+ 
       try {
         // Try restoring session if activeId exists
         if (activeId) {
@@ -106,16 +107,18 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
               setQuestionNumber(sessionData.questionsAsked || 1);
               setClarifyUsed(sessionData.clarifyUsed || false);
               setEvaluations(sessionData.evaluations || []);
+              setPlannedFocusTopics(sessionData.plannedFocusTopics || []);
+              setSeconds(sessionData.durationSeconds || 0);
               setEvaluating(false);
               return;
             }
           }
         }
-
+ 
         // Initialize fresh session
         const newSessionId = 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
         setSessionId(newSessionId);
-
+ 
         const res = await fetch('/api/interview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -124,17 +127,27 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
             candidate: candidateToUse
           })
         });
-
+ 
         if (!res.ok) {
           throw new Error(`Server returned HTTP ${res.status}`);
         }
-
+ 
         const data = await res.json();
         setTurns(data.turns || []);
-        setCurrentTopic(data.currentTopic || 'RAG');
-        setCurrentQuestionDay(data.currentQuestionDay || 12);
-        setCurrentDifficulty(data.currentQuestionDifficulty || 'Intermediate');
-        setQuestionNumber(data.questionsAsked || 1);
+        if (data.progress) {
+          setQuestionNumber(data.progress.questionNumber);
+          setTotalQuestions(data.progress.totalQuestions);
+          setCurrentTopic(data.progress.currentTopic);
+          setCurrentQuestionDay(data.progress.currentDay);
+          setCurrentDifficulty(data.progress.difficulty as any);
+          setPlannedFocusTopics(data.progress.plannedFocusTopics || []);
+        } else {
+          setCurrentTopic(data.currentTopic || 'RAG');
+          setCurrentQuestionDay(data.currentQuestionDay || 12);
+          setCurrentDifficulty(data.currentQuestionDifficulty || 'Intermediate');
+          setQuestionNumber(data.questionsAsked || 1);
+          setPlannedFocusTopics(data.plannedFocusTopics || []);
+        }
         setClarifyUsed(data.clarifyUsed || false);
         setEvaluations(data.evaluations || []);
       } catch (err: any) {
@@ -144,20 +157,29 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
         setEvaluating(false);
       }
     };
-
+ 
     startOrRestoreSession();
   }, [sessionId, activeCandidate, setSessionId, setActiveCandidate, setEvaluations]);
-
+ 
   const submitAnswer = useCallback(
     async (text: string) => {
       if (evaluating) return; // Prevent duplicate submissions
       setEvaluating(true);
       setErrorState(null);
-
-      // Instantly append user message to UI for smooth responsiveness
+ 
+      // Instantly append user message to UI for smooth responsiveness without duplicate turns on retry
       const candidateTurnId = `local-${Date.now()}`;
-      setTurns((prev) => [...prev, { id: candidateTurnId, role: 'candidate', text }]);
-
+      setTurns((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === 'candidate' && last.text === text) {
+          return prev;
+        }
+        return [...prev, { id: candidateTurnId, role: 'candidate', text }];
+      });
+ 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 40000); // 40 seconds timeout
+ 
       try {
         const res = await fetch('/api/interview', {
           method: 'POST',
@@ -165,15 +187,17 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
           body: JSON.stringify({
             sessionId,
             message: text
-          })
+          }),
+          signal: controller.signal
         });
-
+        clearTimeout(timeoutId);
+ 
         if (!res.ok) {
           throw new Error(`Server error (${res.status}). Failed to process response.`);
         }
-
+ 
         const data = await res.json();
-
+ 
         // Check if backend session is done
         if (data.done) {
           setFinalReport(data.feedback);
@@ -184,10 +208,10 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
           const questionsCount = (data.evaluations || []).length || 8;
           
           setResult({ durationSeconds: duration, answered: questionsCount, followUps: followUpsNum });
-
+ 
           // Save completed session to history
           const candName = activeCandidate?.member?.name || activeCandidate?.name || 'Candidate';
-          const candRole = activeCandidate?.member?.jobRole || activeCandidate?.jobRole || 'Software Engineer';
+          const candRole = activeCandidate?.member?.jobRole || 'Software Engineer';
           const sessionItem = {
             id: sessionId || `session-${Date.now()}`,
             date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
@@ -196,17 +220,17 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
             topics: Array.from(new Set((data.evaluations || []).map((e: any) => e.topic))) as string[],
             questions: questionsCount,
             minutes: Math.max(1, Math.round(duration / 60)),
-            score: data.feedback?.overallScore || 80,
+            score: data.feedback?.overallScore ?? null,
             summary: data.feedback?.summary || 'Interview completed.',
             report: data.feedback,
             evaluations: data.evaluations || []
           };
           addCompletedSession(sessionItem);
-
-          onComplete({ durationSeconds: duration, followUps: followUpsNum });
+ 
+          onComplete({ durationSeconds: duration, answered: questionsCount, followUps: followUpsNum });
           return;
         }
-
+ 
         // Check if there is a topic/day shift to run the TopicTransition overlay
         if (data.currentTopic && data.currentTopic !== currentTopic) {
           setTransition({
@@ -214,44 +238,61 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
             to: data.currentTopic,
             line: topicTransitionCopy[data.currentTopic] ?? 'Let’s move on to the next area.'
           });
-
+ 
           schedule(() => {
             setTransition(null);
             setTurns(data.turns || []);
-            setCurrentTopic(data.currentTopic);
-            setCurrentQuestionDay(data.currentQuestionDay);
-            setCurrentDifficulty(data.currentQuestionDifficulty);
-            setQuestionNumber(data.questionsAsked);
+            if (data.progress) {
+              setQuestionNumber(data.progress.questionNumber);
+              setTotalQuestions(data.progress.totalQuestions);
+              setCurrentTopic(data.progress.currentTopic);
+              setCurrentQuestionDay(data.progress.currentDay);
+              setCurrentDifficulty(data.progress.difficulty as any);
+            } else {
+              setCurrentTopic(data.currentTopic);
+              setCurrentQuestionDay(data.currentQuestionDay);
+              setCurrentDifficulty(data.currentQuestionDifficulty);
+              setQuestionNumber(data.questionsAsked || 1);
+            }
             setClarifyUsed(data.clarifyUsed);
             setEvaluations(data.evaluations || []);
           }, 2600);
         } else {
           // Normal turn sync
           setTurns(data.turns || []);
-          setCurrentTopic(data.currentTopic);
-          setCurrentQuestionDay(data.currentQuestionDay);
-          setCurrentDifficulty(data.currentQuestionDifficulty);
-          setQuestionNumber(data.questionsAsked);
+          if (data.progress) {
+            setQuestionNumber(data.progress.questionNumber);
+            setTotalQuestions(data.progress.totalQuestions);
+            setCurrentTopic(data.progress.currentTopic);
+            setCurrentQuestionDay(data.progress.currentDay);
+            setCurrentDifficulty(data.progress.difficulty as any);
+          } else {
+            setCurrentTopic(data.currentTopic);
+            setCurrentQuestionDay(data.currentQuestionDay);
+            setCurrentDifficulty(data.currentQuestionDifficulty);
+            setQuestionNumber(data.questionsAsked || 1);
+          }
           setClarifyUsed(data.clarifyUsed);
           setEvaluations(data.evaluations || []);
         }
       } catch (err: any) {
         console.error('Error submitting answer to backend:', err);
-        setErrorState('Network error communicating with interviewer. Please try submitting again.');
-        // Revert temporary turn on hard failure
-        setTurns((prev) => prev.filter((t) => t.id !== candidateTurnId));
+        const isTimeout = err.name === 'AbortError';
+        setErrorState(isTimeout 
+          ? 'Interviewer request timed out. Please check your connection and try again.' 
+          : 'Network error communicating with interviewer. Please try submitting again.');
       } finally {
         setEvaluating(false);
       }
     },
     [sessionId, currentTopic, evaluating, onComplete, seconds, setFinalReport, setResult, setEvaluations, addCompletedSession, activeCandidate]
   );
-
+ 
   const askClarification = useCallback(async () => {
     if (clarifyUsed || evaluating) return;
     setEvaluating(true);
     setErrorState(null);
-
+ 
     try {
       const res = await fetch('/api/interview', {
         method: 'POST',
@@ -261,13 +302,20 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
           message: '[CLARIFY]'
         })
       });
-
+ 
       if (!res.ok) throw new Error('Clarification request failed.');
-
+ 
       const data = await res.json();
       setTurns(data.turns || []);
       setClarifyUsed(data.clarifyUsed);
       setEvaluations(data.evaluations || []);
+      if (data.progress) {
+        setQuestionNumber(data.progress.questionNumber);
+        setTotalQuestions(data.progress.totalQuestions);
+        setCurrentTopic(data.progress.currentTopic);
+        setCurrentQuestionDay(data.progress.currentDay);
+        setCurrentDifficulty(data.progress.difficulty as any);
+      }
     } catch (err) {
       console.error('Error asking for clarification:', err);
       setErrorState('Could not fetch question clarification. Please try again.');
@@ -306,7 +354,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
 
         // Save completed session
         const candName = activeCandidate?.member?.name || activeCandidate?.name || 'Candidate';
-        const candRole = activeCandidate?.member?.jobRole || activeCandidate?.jobRole || 'Software Engineer';
+        const candRole = activeCandidate?.member?.jobRole || 'Software Engineer';
         const sessionItem = {
           id: sessionId || `session-${Date.now()}`,
           date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
@@ -315,14 +363,14 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
           topics: Array.from(new Set((data.evaluations || []).map((e: any) => e.topic))) as string[],
           questions: questionsCount,
           minutes: Math.max(1, Math.round(duration / 60)),
-          score: data.feedback?.overallScore || 75,
+          score: data.feedback?.overallScore ?? null,
           summary: data.feedback?.summary || 'Interview completed early.',
           report: data.feedback,
           evaluations: data.evaluations || []
         };
         addCompletedSession(sessionItem);
 
-        onComplete({ durationSeconds: duration, followUps: followUpsNum });
+        onComplete({ durationSeconds: duration, answered: questionsCount, followUps: followUpsNum });
       }
     } catch (err) {
       console.error('Error ending session early:', err);
@@ -350,6 +398,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
     errorState,
     submitAnswer,
     askClarification,
-    endEarly
+    endEarly,
+    plannedFocusTopics
   };
 }

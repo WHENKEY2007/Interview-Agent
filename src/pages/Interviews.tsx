@@ -120,8 +120,8 @@ export function Interviews() {
 
                 <div className="flex items-center gap-6">
                   <div className="text-right">
-                    <p className={cn('font-mono text-[24px] font-medium leading-none', toneText[scoreTone(s.score)])}>
-                      {s.score}
+                    <p className={cn('font-mono text-[24px] font-medium leading-none', s.score === null ? 'text-dim' : toneText[scoreTone(s.score)])}>
+                      {s.score === null ? 'N/A' : s.score}
                     </p>
                     <p className="mt-1 text-2xs uppercase tracking-[0.1em] text-dim">Score</p>
                   </div>

@@ -23,6 +23,19 @@ export interface AnswerEvaluation {
   strengths: string[];
   improvements: string[];
   betterAnswer: string[];
+  questionId: string;
+  questionNumber: number;
+  objective: string;
+  difficulty: string;
+  questionType: 'primary' | 'followup';
+  score: number;
+  metrics?: {
+    technical: number;
+    problemSolving: number;
+    communication: number;
+    depth: number;
+    practical: number;
+  };
 }
 
 export interface SessionState {
@@ -47,13 +60,16 @@ export interface SessionState {
   currentQuestion: string;
   currentQuestionDay: number;
   currentQuestionDifficulty: string;
-  followUpCount: number;
-  isFollowUpStage: boolean;
+  currentQuestionId: string;
+  currentQuestionObjective: string;
+  currentQuestionNumber: number;
   clarifyUsed: boolean;
   evaluations: AnswerEvaluation[];
   status: 'IN_PROGRESS' | 'COMPLETED';
   startTime: number;
   durationSeconds: number;
+  completedAt?: number;
+  plannedFocusTopics?: any[];
   finalFeedback?: {
     summary: string;
     strengths: string[];
@@ -64,10 +80,11 @@ export interface SessionState {
       reason: string;
       items: string[];
     } | string>;
-    overallScore?: number;
-    technicalScore?: number;
-    depthScore?: number;
-    communicationScore?: number;
+    overallScore?: number | null;
+    technicalScore?: number | null;
+    depthScore?: number | null;
+    communicationScore?: number | null;
+    metrics?: Array<{ label: string; score: number; note: string }>;
     topicPerformance?: Array<{
       day: string;
       topic: string;
@@ -78,6 +95,7 @@ export interface SessionState {
     }>;
     questionReviews?: AnswerEvaluation[];
     recommendations?: string[];
+    plannedFocusTopics?: Array<{ topic: string; signal: 'Strong' | 'Moderate' | 'Needs Practice' }>;
   };
 }
 
@@ -103,8 +121,9 @@ export function createSession(sessionId: string, candidate: CandidateProfile): S
     currentQuestion: '',
     currentQuestionDay: 0,
     currentQuestionDifficulty: 'Intermediate',
-    followUpCount: 0,
-    isFollowUpStage: false,
+    currentQuestionId: '',
+    currentQuestionObjective: '',
+    currentQuestionNumber: 1,
     clarifyUsed: false,
     evaluations: [],
     status: 'IN_PROGRESS',

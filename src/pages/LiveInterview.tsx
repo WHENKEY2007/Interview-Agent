@@ -19,8 +19,8 @@ export function LiveInterview() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const handleComplete = useCallback(
-    (result: { durationSeconds: number; followUps: number }) => {
-      setResult({ durationSeconds: result.durationSeconds, answered: 8, followUps: result.followUps });
+    (result: { durationSeconds: number; answered: number; followUps: number }) => {
+      setResult({ durationSeconds: result.durationSeconds, answered: result.answered, followUps: result.followUps });
       navigate('/complete');
     },
     [navigate, setResult]

@@ -1,8 +1,10 @@
 import React from 'react';
 import { SparklesIcon } from 'lucide-react';
 import { Panel } from '../ui/Panel';
-import { focusChips } from '../../data/cohort';
+import { useSession } from '../../contexts/SessionContext';
+import { candidate as fallbackCandidate } from '../../data/cohort';
 import { cn } from '../../utils/cn';
+import { getCandidateInterviewFocus } from '../../utils/candidateFocus';
 
 const signalStyle: Record<string, string> = {
   Strong: 'text-[#7EE2A8] border-[#1F4430] bg-[#12251A]',
@@ -11,6 +13,10 @@ const signalStyle: Record<string, string> = {
 };
 
 export function InterviewFocusCard() {
+  const { activeCandidate } = useSession();
+  const candidate = activeCandidate || fallbackCandidate;
+  const focusChips = getCandidateInterviewFocus(candidate);
+
   return (
     <Panel className="p-5">
       <div className="flex items-center gap-2">
@@ -24,20 +30,19 @@ export function InterviewFocusCard() {
       </p>
 
       <ul className="mt-4 flex flex-wrap gap-2">
-        {focusChips.map((chip) =>
-        <li
-          key={chip.topic}
-          className={cn(
-            'inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[12.5px] font-medium',
-            signalStyle[chip.signal]
-          )}>
-          
+        {focusChips.map((chip) => (
+          <li
+            key={chip.topic}
+            className={cn(
+              'inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[12.5px] font-medium',
+              signalStyle[chip.signal]
+            )}>
             <span className="text-fg">{chip.topic}</span>
             <span aria-hidden className="h-3 w-px bg-current opacity-30" />
             <span>{chip.signal}</span>
           </li>
-        )}
+        ))}
       </ul>
-    </Panel>);
-
+    </Panel>
+  );
 }

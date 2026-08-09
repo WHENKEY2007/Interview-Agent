@@ -47,8 +47,8 @@ let candidates: CandidateProfile[] = [];
 
 export function loadData() {
   try {
-    const curriculumPath = path.resolve('data/curriculum.json');
-    const candidatesPath = path.resolve('data/candidates.json');
+    const curriculumPath = path.join(process.cwd(), 'data/curriculum.json');
+    const candidatesPath = path.join(process.cwd(), 'data/candidates.json');
 
     const curriculumRaw = fs.readFileSync(curriculumPath, 'utf8');
     const candidatesRaw = fs.readFileSync(candidatesPath, 'utf8');

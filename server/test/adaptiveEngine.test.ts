@@ -4,16 +4,18 @@ import { createSession, getSession, saveSession } from '../session/sessionStore'
 import { startInterview, handleCandidateMessage } from '../agent/interviewAgent';
 import { determineNextAction } from '../agent/interviewDecisionEngine';
 import { evaluateAnswer } from '../agent/answerEvaluator';
+import { getDefaultFallbackQuestion } from '../agent/questionGenerator';
+import { getDefaultFallbackFollowUp } from '../agent/followUpGenerator';
 
 loadData();
 
 const curriculum = getCurriculum();
 const allCandidates = getCandidates();
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, process.env.MOCK_LLM === 'true' ? 0 : ms));
 
 console.log('================================================');
-console.log('RUNNING AI ADAPTIVE INTERVIEW TEST SUITE (PHASE 3)');
+console.log('RUNNING AI ADAPTIVE INTERVIEW TEST SUITE (PHASE 6)');
 console.log('================================================\n');
 
 const tests = [
@@ -226,27 +228,47 @@ const tests = [
       assert.strictEqual(session2.evaluations.length, originalEvaluationsCount + 1, 'Evaluations count must increment');
       assert.strictEqual(session2.questionsAsked, originalAsked + 1, 'questionsAsked must increment');
     }
+  },
+  {
+    name: 'Scenario 9: Hard pacing limit enforces interview completion at 10 questions',
+    fn: async () => {
+      const candidate = allCandidates[0];
+      const sessionId = 'session-s9-' + Date.now();
+      
+      await startInterview(sessionId, candidate);
+      const session = getSession(sessionId)!;
+
+      // Set questionsAsked to 10 (so next candidate answer brings total questionsAsked to 10 and completes)
+      session.questionsAsked = 10;
+      session.curriculumDaysCovered = [12, 14]; // Only 2 days covered, but hard limit should still terminate
+
+      const result = await handleCandidateMessage(sessionId, 'For retrieval, HNSW graphs optimize latency.');
+      assert.strictEqual(result.done, true, 'Interview should terminate immediately when reaching max 10 questions');
+      assert.strictEqual(session.status, 'COMPLETED', 'Session status must be marked completed');
+    }
+  },
+  {
+    name: 'Scenario 10: Fallback mechanisms handle LLM generation errors gracefully without crashing',
+    fn: async () => {
+      const day12 = getCurriculumDay(12)!;
+      const fallbackQ = getDefaultFallbackQuestion(day12, 'Advanced');
+      const fallbackF = getDefaultFallbackFollowUp('challenge');
+      
+      console.log(`  - Fallback Question Day 12 (Advanced): "${fallbackQ}"`);
+      console.log(`  - Fallback Follow-up (Challenge): "${fallbackF}"`);
+      
+      assert.ok(fallbackQ.includes('latency') || fallbackQ.includes('JSON'), 'Fallback question should contain RAG debugging concepts');
+      assert.ok(fallbackF.includes('trade-offs') || fallbackF.includes(' latency'), 'Fallback follow-up should prompt architectural reasoning');
+    }
   }
 ];
 
-async function runAll() {
-  for (const test of tests) {
-    console.log(`\n--- Running: ${test.name} ---`);
-    try {
-      await test.fn();
-      console.log(`[PASS] ${test.name}`);
-    } catch (error: any) {
-      console.error(`[FAIL] ${test.name}`);
-      console.error(error.stack || error);
-      process.exit(1);
-    }
-    // Sleep 13 seconds between tests to respect 5 RPM limit
+import { test } from 'vitest';
+
+tests.forEach((t) => {
+  test(t.name, async () => {
+    await t.fn();
     console.log('Sleeping 13s to respect free tier RPM rate limit...');
     await sleep(13000);
-  }
-  console.log('\n================================================');
-  console.log('ALL ADAPTIVE ENGINE TESTS COMPLETED SUCCESSFULLY!');
-  console.log('================================================');
-}
-
-runAll();
+  });
+});

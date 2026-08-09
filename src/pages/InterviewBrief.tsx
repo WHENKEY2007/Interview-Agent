@@ -8,6 +8,7 @@ import { Badge } from "../components/ui/Badge";
 import { Panel } from "../components/ui/Panel";
 import { useSession } from "../contexts/SessionContext";
 import { candidate as fallbackCandidate } from "../data/cohort";
+import { getCandidateInterviewFocus, buildPlannedFocusTopics } from "../utils/candidateFocus";
 
 const stats = [{
   icon: ListChecksIcon,
@@ -25,28 +26,6 @@ const stats = [{
   icon: GaugeIcon,
   value: 'Adaptive',
   label: 'Difficulty'
-}];
-
-const defaultTopics = [{
-  name: 'RAG',
-  days: 'Days 10–14',
-  signal: 'Strong'
-}, {
-  name: 'Vector Databases',
-  days: 'Days 7–9',
-  signal: 'Strong'
-}, {
-  name: 'Prompt Engineering',
-  days: 'Days 4–6',
-  signal: 'Moderate'
-}, {
-  name: 'Agentic AI',
-  days: 'Days 17–20',
-  signal: 'Needs Practice'
-}, {
-  name: 'MCP',
-  days: 'Days 21–23',
-  signal: 'Needs Practice'
 }];
 
 const how = [{
@@ -76,9 +55,12 @@ export function InterviewBrief() {
   const navigate = useNavigate();
   const { activeCandidate, setSessionId } = useSession();
 
-  const candidate = activeCandidate || fallbackCandidate;
+  const candidate: any = activeCandidate || fallbackCandidate;
   const name = candidate.member ? candidate.member.name : candidate.name;
   const role = candidate.member ? candidate.member.jobRole : candidate.jobRole;
+
+  const focus = getCandidateInterviewFocus(candidate);
+  const plannedTopics = buildPlannedFocusTopics(candidate, focus);
 
   const handleBeginInterview = () => {
     setSessionId(null); // Clear previous session for clean start
@@ -131,13 +113,13 @@ export function InterviewBrief() {
           <Panel className="p-5">
             <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-sub">Planned focus topics</h2>
             <ul className="mt-4 space-y-2">
-              {defaultTopics.map((t) => (
-                <li key={t.name} className="flex items-center justify-between rounded-lg border border-line bg-raised px-3 py-2.5">
+              {plannedTopics.map((t) => (
+                <li key={t.topic} className="flex items-center justify-between rounded-lg border border-line bg-raised px-3 py-2.5">
                   <div>
-                    <p className="text-[13.5px] font-medium text-fg">{t.name}</p>
-                    <p className="font-mono text-2xs text-dim">{t.days}</p>
+                    <p className="text-[13.5px] font-medium text-fg">{t.topic}</p>
+                    <p className="font-mono text-2xs text-dim">{t.dayRange}</p>
                   </div>
-                  <span className={`text-2xs font-medium ${signalTone[t.signal]}`}>{t.signal}</span>
+                  <span className={`text-2xs font-medium ${signalTone[t.status]}`}>{t.status}</span>
                 </li>
               ))}
             </ul>
