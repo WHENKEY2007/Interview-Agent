@@ -69,6 +69,7 @@ export interface SessionState {
   startTime: number;
   durationSeconds: number;
   completedAt?: number;
+  plannedFocusTopics?: any[];
   finalFeedback?: {
     summary: string;
     strengths: string[];

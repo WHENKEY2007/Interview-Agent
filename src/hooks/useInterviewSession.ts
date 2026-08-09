@@ -32,6 +32,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
   const [transition, setTransition] = useState<TransitionState | null>(null);
   const [seconds, setSeconds] = useState(0);
   const [errorState, setErrorState] = useState<string | null>(null);
+  const [plannedFocusTopics, setPlannedFocusTopics] = useState<any[]>([]);
 
   const timers = useRef<number[]>([]);
   const initialized = useRef<boolean>(false);
@@ -106,6 +107,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
               setQuestionNumber(sessionData.questionsAsked || 1);
               setClarifyUsed(sessionData.clarifyUsed || false);
               setEvaluations(sessionData.evaluations || []);
+              setPlannedFocusTopics(sessionData.plannedFocusTopics || []);
               setSeconds(sessionData.durationSeconds || 0);
               setEvaluating(false);
               return;
@@ -138,11 +140,13 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
           setCurrentTopic(data.progress.currentTopic);
           setCurrentQuestionDay(data.progress.currentDay);
           setCurrentDifficulty(data.progress.difficulty as any);
+          setPlannedFocusTopics(data.progress.plannedFocusTopics || []);
         } else {
           setCurrentTopic(data.currentTopic || 'RAG');
           setCurrentQuestionDay(data.currentQuestionDay || 12);
           setCurrentDifficulty(data.currentQuestionDifficulty || 'Intermediate');
           setQuestionNumber(data.questionsAsked || 1);
+          setPlannedFocusTopics(data.plannedFocusTopics || []);
         }
         setClarifyUsed(data.clarifyUsed || false);
         setEvaluations(data.evaluations || []);
@@ -394,6 +398,7 @@ export function useInterviewSession(onComplete: (result: { durationSeconds: numb
     errorState,
     submitAnswer,
     askClarification,
-    endEarly
+    endEarly,
+    plannedFocusTopics
   };
 }

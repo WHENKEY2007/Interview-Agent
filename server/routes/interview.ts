@@ -18,18 +18,29 @@ router.post('/interview', async (req: Request, res: Response): Promise<Response>
       return res.status(400).json({ error: 'Missing or invalid required field: sessionId (must be string).' });
     }
 
-    // Case 1: Start Interview (has candidate data)
-    if (candidate !== undefined) {
-      if (!candidate.member || typeof candidate.member.id !== 'string' || typeof candidate.member.name !== 'string') {
-        return res.status(400).json({ error: 'Invalid candidate profile: candidate.member.id and candidate.member.name are required.' });
+    // Case 1: Start Interview (has candidate data or candidateId)
+    if (candidate !== undefined || req.body.candidateId !== undefined) {
+      let resolvedCandidate = candidate;
+      const candidateId = req.body.candidateId || (candidate && (candidate.member?.id || candidate.id));
+
+      if (candidateId) {
+        const { getCandidateById } = await import('../data/dataLoader');
+        const loadedCandidate = getCandidateById(candidateId);
+        if (loadedCandidate) {
+          resolvedCandidate = loadedCandidate;
+        }
       }
 
-      console.log(`[Router] Initializing new session ${sessionId} for candidate:`, candidate.member.name);
-      const reply = await startInterview(sessionId, candidate);
+      if (!resolvedCandidate || !resolvedCandidate.member || typeof resolvedCandidate.member.id !== 'string' || typeof resolvedCandidate.member.name !== 'string') {
+        return res.status(400).json({ error: 'Invalid candidate profile or candidateId.' });
+      }
+
+      console.log(`[Router] Initializing new session ${sessionId} for candidate:`, resolvedCandidate.member.name);
+      const reply = await startInterview(sessionId, resolvedCandidate);
       const sessionState = getSession(sessionId)!;
       
       const uniqueDays = new Set(sessionState.curriculumDaysCovered || []);
-      const responsePayload: InterviewResponse = {
+      const responsePayload: any = {
         reply,
         done: false,
         turns: sessionState.turns,
@@ -42,6 +53,7 @@ router.post('/interview', async (req: Request, res: Response): Promise<Response>
         followUpsAsked: sessionState.followUpsAsked,
         clarifyUsed: sessionState.clarifyUsed,
         evaluations: sessionState.evaluations,
+        plannedFocusTopics: sessionState.plannedFocusTopics,
         progress: {
           questionNumber: sessionState.questionsAsked,
           totalQuestions: 10,
@@ -50,7 +62,8 @@ router.post('/interview', async (req: Request, res: Response): Promise<Response>
           requiredDays: 4,
           currentDay: sessionState.currentQuestionDay,
           currentTopic: sessionState.currentTopic,
-          difficulty: sessionState.currentQuestionDifficulty
+          difficulty: sessionState.currentQuestionDifficulty,
+          plannedFocusTopics: sessionState.plannedFocusTopics
         }
       };
       return res.json(responsePayload);
@@ -67,7 +80,7 @@ router.post('/interview', async (req: Request, res: Response): Promise<Response>
       const sessionState = getSession(sessionId)!;
 
       const uniqueDays = new Set(sessionState.curriculumDaysCovered || []);
-      const responsePayload: InterviewResponse = {
+      const responsePayload: any = {
         ...result,
         turns: sessionState.turns,
         currentTopic: sessionState.currentTopic,
@@ -79,6 +92,7 @@ router.post('/interview', async (req: Request, res: Response): Promise<Response>
         followUpsAsked: sessionState.followUpsAsked,
         clarifyUsed: sessionState.clarifyUsed,
         evaluations: sessionState.evaluations,
+        plannedFocusTopics: sessionState.plannedFocusTopics,
         progress: {
           questionNumber: sessionState.questionsAsked,
           totalQuestions: 10,
@@ -87,7 +101,8 @@ router.post('/interview', async (req: Request, res: Response): Promise<Response>
           requiredDays: 4,
           currentDay: sessionState.currentQuestionDay,
           currentTopic: sessionState.currentTopic,
-          difficulty: sessionState.currentQuestionDifficulty
+          difficulty: sessionState.currentQuestionDifficulty,
+          plannedFocusTopics: sessionState.plannedFocusTopics
         }
       };
       return res.json(responsePayload);

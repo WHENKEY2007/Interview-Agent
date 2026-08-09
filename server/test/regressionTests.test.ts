@@ -301,3 +301,42 @@ test('TEST H: Multiple concurrent sessions maintain distinct history and state',
   assert.strictEqual(s1CandidateTurns[0].text, 'First answer from Sarah.');
   assert.strictEqual(s2CandidateTurns[0].text, 'First answer from Alex.');
 });
+
+// =========================================================================
+// TEST I: Candidate Isolation in Planning
+// =========================================================================
+test('TEST I: Emily Chen (Advanced) vs Alex Turner (Intermediate) yields distinct plans and target difficulties', () => {
+  const emily = allCandidates.find(c => c.member.id === 'CAND-003')!;
+  const alex = allCandidates.find(c => c.member.id === 'CAND-002')!;
+
+  assert.ok(emily && alex);
+
+  const planEmily = generateInterviewPlan(emily, curriculum);
+  const planAlex = generateInterviewPlan(alex, curriculum);
+
+  assert.strictEqual(planEmily.targetDifficulty, 'Advanced', 'Emily should be planned as Advanced');
+  assert.strictEqual(planAlex.targetDifficulty, 'Intermediate', 'Alex should be planned as Intermediate');
+  assert.notDeepStrictEqual(planEmily.selectedDays, planAlex.selectedDays, 'Days selected for plans must differ based on individual progress');
+});
+
+// =========================================================================
+// TEST J: Switch Candidate State Reset & Restoration
+// =========================================================================
+test('TEST J: Restarting session or switching active candidate creates distinct session IDs and plans without leakage', async () => {
+  const candA = allCandidates.find(c => c.member.id === 'CAND-001')!;
+  const candB = allCandidates.find(c => c.member.id === 'CAND-002')!;
+
+  const s1 = 'session-switch-1-' + Date.now();
+  const s2 = 'session-switch-2-' + Date.now();
+
+  await startInterview(s1, candA);
+  await startInterview(s2, candB);
+
+  const sessionA = getSession(s1)!;
+  const sessionB = getSession(s2)!;
+
+  assert.strictEqual(sessionA.candidate.member.id, 'CAND-001');
+  assert.strictEqual(sessionB.candidate.member.id, 'CAND-002');
+  
+  assert.notDeepStrictEqual(sessionA.plannedFocusTopics, sessionB.plannedFocusTopics, 'Plans must not leak or be shared between sessions');
+});

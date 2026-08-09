@@ -4,6 +4,7 @@ import { Panel } from '../ui/Panel';
 import { useSession } from '../../contexts/SessionContext';
 import { candidate as fallbackCandidate } from '../../data/cohort';
 import { cn } from '../../utils/cn';
+import { getCandidateInterviewFocus } from '../../utils/candidateFocus';
 
 const signalStyle: Record<string, string> = {
   Strong: 'text-[#7EE2A8] border-[#1F4430] bg-[#12251A]',
@@ -14,32 +15,7 @@ const signalStyle: Record<string, string> = {
 export function InterviewFocusCard() {
   const { activeCandidate } = useSession();
   const candidate = activeCandidate || fallbackCandidate;
-  const candidateMissions = candidate.missions || [];
-
-  const topicsMap: Record<string, number[]> = {
-    'Vector Databases': [7, 8, 9],
-    'RAG': [10, 11, 14],
-    'Prompt Engineering': [4, 5, 6, 12, 13],
-    'Agentic AI': [17, 18, 19, 20, 22, 24],
-    'MCP': [21, 23]
-  };
-
-  const focusChips = Object.entries(topicsMap).map(([topic, days]) => {
-    const topicMissions = candidateMissions.filter(m => days.includes(m.day));
-    const passedCount = topicMissions.filter(m => m.passed === true).length;
-    const skippedCount = topicMissions.filter(m => m.skipped === true || m.passed === false).length;
-    const attemptsSum = topicMissions.reduce((sum, m) => sum + (m.attempts || 1), 0);
-    const avgAttempts = topicMissions.length > 0 ? attemptsSum / topicMissions.length : 1;
-
-    let signal: 'Strong' | 'Moderate' | 'Needs Practice' = 'Moderate';
-    if (skippedCount > 0 || avgAttempts >= 3 || (topicMissions.length > 0 && passedCount === 0)) {
-      signal = 'Needs Practice';
-    } else if (passedCount > 0 && avgAttempts < 2) {
-      signal = 'Strong';
-    }
-
-    return { topic, signal };
-  });
+  const focusChips = getCandidateInterviewFocus(candidate);
 
   return (
     <Panel className="p-5">

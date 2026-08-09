@@ -1,4 +1,5 @@
-import { CandidateProfile, Curriculum, CurriculumDay, getCurriculumDay } from '../data/dataLoader';
+import { CandidateProfile, Curriculum, getCurriculumDay } from '../data/dataLoader';
+import { getCandidateInterviewFocus, buildPlannedFocusTopics, PlannedFocusTopic } from '../../src/utils/candidateFocus';
 
 export interface PlanTopic {
   day: number;
@@ -12,6 +13,7 @@ export interface InterviewPlan {
   selectedDays: number[];
   topics: PlanTopic[];
   targetDifficulty: 'Foundational' | 'Intermediate' | 'Advanced';
+  plannedFocusTopics?: PlannedFocusTopic[];
 }
 
 /**
@@ -161,13 +163,21 @@ export function generateInterviewPlan(candidate: CandidateProfile, curriculum: C
   // Sync selectedDays array to match sorted topics order
   const selectedDays = plannedTopics.map((t) => t.day);
 
-  // Remove the internal sequenceWeight field before returning to match interface
+  // Remove internal sequenceWeight field before returning
   const cleanPlannedTopics: PlanTopic[] = plannedTopics.map(({ sequenceWeight, ...rest }) => rest);
+
+  // Calculate plannedFocusTopics
+  const focus = getCandidateInterviewFocus(candidate);
+  const plannedFocusTopics = buildPlannedFocusTopics(candidate, focus);
+
+  console.log(`\n[Interview Focus]\ncandidateId: ${candidateId}\nfocusTopics:`, focus.map(f => ({ topic: f.topic, signal: f.signal })));
+  console.log(`[Interview Plan]\ncandidateId: ${candidateId}\nplannedFocusTopics:`, plannedFocusTopics.map(p => ({ topic: p.topic, status: p.status, dayRange: p.dayRange })));
 
   return {
     candidateId,
     selectedDays,
     topics: cleanPlannedTopics,
-    targetDifficulty
+    targetDifficulty,
+    plannedFocusTopics
   };
 }

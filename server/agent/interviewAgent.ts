@@ -44,7 +44,10 @@ export async function startInterview(sessionId: string, candidateData: any): Pro
   const curriculum = getCurriculum();
   const plan = generateInterviewPlan(candidate, curriculum);
   session.interviewPlan = plan;
+  session.plannedFocusTopics = plan.plannedFocusTopics;
   session.planDayIndex = 0;
+
+  console.log(`[Interview Start]\ncandidateId: ${candidate.member.id}\nselectedTopics:`, plan.topics.map(t => t.title), `\nplannedDays:`, plan.selectedDays);
 
   // Pick first day/topic from the plan
   const firstDayNum = plan.selectedDays[0] || 12;

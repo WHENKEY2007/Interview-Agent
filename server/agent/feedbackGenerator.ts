@@ -2,6 +2,7 @@ import { generateContent } from '../llm/llmClient';
 import { CandidateProfile, getCurriculum, getCurriculumDay } from '../data/dataLoader';
 import { AnswerEvaluation, SessionState } from '../session/sessionStore';
 import { safeParseJSON } from './validation';
+import { TOPIC_DAYS_MAP } from '../../src/utils/candidateFocus';
 
 export interface NextStepItem {
   day: string;
@@ -31,6 +32,8 @@ export interface FinalFeedback {
   topicPerformance: TopicPerformanceItem[];
   questionReviews: AnswerEvaluation[];
   recommendations: string[];
+  metrics?: Array<{ label: string; score: number; note: string }>;
+  plannedFocusTopics?: Array<{ topic: string; signal: 'Strong' | 'Moderate' | 'Needs Practice' }>;
 }
 
 function clampScore(val: any, fallback: number): number {
@@ -67,17 +70,9 @@ export function calculatePlannedFocusTopics(
   candidate: CandidateProfile,
   evaluations: AnswerEvaluation[]
 ): Array<{ topic: string; signal: 'Strong' | 'Moderate' | 'Needs Practice' }> {
-  const topicsMap: Record<string, number[]> = {
-    'Vector Databases': [7, 8, 9],
-    'RAG': [10, 11, 14],
-    'Prompt Engineering': [4, 5, 6, 12, 13],
-    'Agentic AI': [17, 18, 19, 20, 22, 24],
-    'MCP': [21, 23]
-  };
-
   const candidateMissions = candidate.missions || [];
 
-  return Object.entries(topicsMap).map(([topic, days]) => {
+  return Object.entries(TOPIC_DAYS_MAP).map(([topic, days]) => {
     // 1. Candidate Baseline
     const topicMissions = candidateMissions.filter(m => days.includes(m.day));
     const passedCount = topicMissions.filter(m => m.passed === true).length;
