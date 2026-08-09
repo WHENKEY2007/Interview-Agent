@@ -7,7 +7,7 @@
     "dev": "concurrently \"npm run server\" \"npx vite\"",
     "server": "npx tsx server/index.ts",
     "frontend": "npx vite",
-    "build": "npx vite build && npx esbuild api/_index.ts --bundle --platform=node --format=esm --external:express --external:cors --external:dotenv --outfile=api/index.js",
+    "build": "npx vite build && npx esbuild api/_index.ts --bundle --platform=node --format=esm --packages=external --outfile=api/index.js",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "preview": "npx vite preview",
     "test": "vitest run"
